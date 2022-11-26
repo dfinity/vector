@@ -38,10 +38,9 @@ impl SourceConfig for SystemdJournalGatewaydConfig {
         Ok(Box::pin(
             SystemdJournalGatewaydSource {
                 endpoint: self.endpoint.clone(),
-                _shutdown: cx.shutdown,
                 out: cx.out,
             }
-            .run_shutdown(),
+            .run_shutdown(cx.shutdown),
         ))
     }
 
@@ -57,21 +56,28 @@ impl SourceConfig for SystemdJournalGatewaydConfig {
 /// Captures the configuration options required to decode the incoming requests into events.
 #[derive(Clone)]
 struct SystemdJournalGatewaydSource {
-    _shutdown: ShutdownSignal,
     endpoint: String,
     out: SourceSender,
 }
 
 impl SystemdJournalGatewaydSource {
-    async fn run_shutdown(self) -> Result<(), ()> {
-        self.run().await?;
+    async fn run_shutdown(self, mut shutdown: ShutdownSignal) -> Result<(), ()> {
+        let should_run = Arc::new(AtomicBool::new(true));
+
+        let join_handle = tokio::task::spawn(self.run(should_run.clone()));
+
+        tokio::select! {
+            _ = &mut shutdown => should_run.store(false, Ordering::Relaxed),
+        }
+
+        if let Err(_) = join_handle.await {
+            warn!("Systemd-journal-gatewayd task returned an error");
+        }
 
         Ok(())
     }
 
-    async fn run(mut self) -> Result<(), ()> {
-        let should_run = Arc::new(AtomicBool::new(true));
-
+    async fn run(mut self, should_run: Arc<AtomicBool>) -> Result<(), ()> {
         let parsed_ip = self.endpoint.parse().map_err(|error| {
             emit!(SystemdJournalGatewaydParseIpError { error });
         })?;
@@ -107,11 +113,6 @@ impl SystemdJournalGatewaydSource {
                         .map_err(|error| emit!(StreamClosedError { error, count: 1 }))?;
                 }
             }
-
-            // tokio::select! {
-            //     _ = &mut self.shutdown => should_run.store(false, Ordering::Relaxed),
-            //     else => continue,
-            // }
         }
 
         Ok(())
