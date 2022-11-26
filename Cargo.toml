@@ -185,7 +185,7 @@ tower = { version = "0.4.13", default-features = false, features = ["buffer", "l
 serde = { version = "1.0.147", default-features = false, features = ["derive"] }
 serde-toml-merge = { version = "0.3.0", default-features = false }
 serde_bytes = { version = "0.11.7", default-features = false, features = ["std"], optional = true }
-serde_json = { version = "1.0.89", default-features = false, features = ["raw_value"] }
+serde_json = { version = "1.0.87", default-features = false, features = ["raw_value"] }
 serde_with = { version = "2.1.0", default-features = false, features = ["macros", "std"], optional = true }
 serde_yaml = { version = "0.9.14", default-features = false }
 
@@ -480,6 +480,7 @@ sources-logs = [
   "sources-stdin",
   "sources-syslog",
   "sources-vector",
+  "sources-systemd_journal_gatewayd"
 ]
 sources-metrics = [
   "sources-apache_metrics",
@@ -544,6 +545,7 @@ sources-utils-net = ["sources-utils-net-tcp", "sources-utils-net-udp", "sources-
 sources-utils-net-tcp = ["listenfd"]
 sources-utils-net-udp = ["listenfd"]
 sources-utils-net-unix = []
+sources-systemd_journal_gatewayd = []
 
 sources-vector = ["dep:tonic", "protobuf-build"]
 

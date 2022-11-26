@@ -78,6 +78,8 @@ pub mod splunk_hec;
 pub mod statsd;
 #[cfg(feature = "sources-syslog")]
 pub mod syslog;
+#[cfg(feature = "sources-systemd_journal_gatewayd")]
+pub mod systemd_journal_gatewayd;
 #[cfg(feature = "sources-vector")]
 pub mod vector;
 
@@ -91,6 +93,8 @@ use crate::config::{
     unit_test::{UnitTestSourceConfig, UnitTestStreamSourceConfig},
     Resource, SourceConfig, SourceContext,
 };
+
+use self::systemd_journal_gatewayd::SystemdJournalGatewaydConfig;
 
 /// Common build errors
 #[derive(Debug, Snafu)]
@@ -299,6 +303,10 @@ pub enum Sources {
     /// Vector.
     #[cfg(feature = "sources-vector")]
     Vector(#[configurable(derived)] vector::VectorConfig),
+
+    /// Systemd-Journal-Gatewayd
+    #[cfg(feature = "sources-systemd_journal_gatewayd")]
+    SystemdJournalGatewayd(#[configurable(derived)] SystemdJournalGatewaydConfig),
 }
 
 // We can't use `enum_dispatch` here because it doesn't support associated constants.
@@ -401,6 +409,8 @@ impl NamedComponent for Sources {
             Self::UnitTestStream(config) => config.get_component_name(),
             #[cfg(feature = "sources-vector")]
             Self::Vector(config) => config.get_component_name(),
+            #[cfg(feature = "sources-systemd_journal_gatewayd")]
+            Self::SystemdJournalGatewayd(config) => config.get_component_name(),
         }
     }
 }
