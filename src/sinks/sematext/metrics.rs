@@ -8,7 +8,7 @@ use indoc::indoc;
 use tower::Service;
 use vector_common::sensitive_string::SensitiveString;
 use vector_config::configurable_component;
-use vector_core::ByteSizeOf;
+use vector_core::EstimatedJsonEncodedSizeOf;
 
 use super::Region;
 use crate::{
@@ -183,7 +183,7 @@ impl SematextMetricsService {
             )
             .with_flat_map(move |event: Event| {
                 stream::iter({
-                    let byte_size = event.size_of();
+                    let byte_size = event.estimated_json_encoded_size_of();
                     normalizer
                         .normalize(event.into_metric())
                         .map(|item| Ok(EncodedEvent::new(item, byte_size)))
@@ -254,7 +254,7 @@ fn encode_events(
     metrics: Vec<Metric>,
 ) -> EncodedEvent<Bytes> {
     let mut output = BytesMut::new();
-    let byte_size = metrics.size_of();
+    let byte_size = metrics.estimated_json_encoded_size_of();
     for metric in metrics.into_iter() {
         let (series, data, _metadata) = metric.into_parts();
         let namespace = series
@@ -266,14 +266,14 @@ fn encode_events(
 
         // Authentication in Sematext is by inserting the token as a tag.
         let mut tags = series.tags.unwrap_or_default();
-        tags.insert("token".into(), token.into());
+        tags.replace("token".into(), token.to_string());
         let (metric_type, fields) = match data.value {
             MetricValue::Counter { value } => ("counter", to_fields(label, value)),
             MetricValue::Gauge { value } => ("gauge", to_fields(label, value)),
             _ => unreachable!(), // handled by SematextMetricNormalize
         };
 
-        tags.insert("metric_type".into(), metric_type.into());
+        tags.replace("metric_type".into(), metric_type.to_string());
 
         if let Err(error) = influx_line_protocol(
             ProtocolVersion::V1,
@@ -329,7 +329,11 @@ mod tests {
             MetricValue::Counter { value: 42.0 },
         )
         .with_namespace(Some("jvm"))
-        .with_timestamp(Some(Utc.ymd(2020, 8, 18).and_hms_nano(21, 0, 0, 0)))];
+        .with_timestamp(Some(
+            Utc.ymd(2020, 8, 18)
+                .and_hms_nano_opt(21, 0, 0, 0)
+                .expect("invalid timestamp"),
+        ))];
 
         assert_eq!(
             "jvm,metric_type=counter,token=aaa pool.used=42 1597784400000000000",
@@ -344,7 +348,11 @@ mod tests {
             MetricKind::Incremental,
             MetricValue::Counter { value: 42.0 },
         )
-        .with_timestamp(Some(Utc.ymd(2020, 8, 18).and_hms_nano(21, 0, 0, 0)))];
+        .with_timestamp(Some(
+            Utc.ymd(2020, 8, 18)
+                .and_hms_nano_opt(21, 0, 0, 0)
+                .expect("invalid timestamp"),
+        ))];
 
         assert_eq!(
             "ns,metric_type=counter,token=aaa used=42 1597784400000000000",
@@ -361,14 +369,22 @@ mod tests {
                 MetricValue::Counter { value: 42.0 },
             )
             .with_namespace(Some("jvm"))
-            .with_timestamp(Some(Utc.ymd(2020, 8, 18).and_hms_nano(21, 0, 0, 0))),
+            .with_timestamp(Some(
+                Utc.ymd(2020, 8, 18)
+                    .and_hms_nano_opt(21, 0, 0, 0)
+                    .expect("invalid timestamp"),
+            )),
             Metric::new(
                 "pool.committed",
                 MetricKind::Incremental,
                 MetricValue::Counter { value: 18874368.0 },
             )
             .with_namespace(Some("jvm"))
-            .with_timestamp(Some(Utc.ymd(2020, 8, 18).and_hms_nano(21, 0, 0, 1))),
+            .with_timestamp(Some(
+                Utc.ymd(2020, 8, 18)
+                    .and_hms_nano_opt(21, 0, 0, 1)
+                    .expect("invalid timestamp"),
+            )),
         ];
 
         assert_eq!(
@@ -421,11 +437,11 @@ mod tests {
                 Metric::new(
                     *metric,
                     MetricKind::Incremental,
-                    MetricValue::Counter { value: *val as f64 },
+                    MetricValue::Counter { value: *val },
                 )
                 .with_namespace(Some(*namespace))
                 .with_tags(Some(metric_tags!("os.host" => "somehost")))
-                .with_timestamp(Some(Utc.ymd(2020, 8, 18).and_hms_nano(21, 0, 0, i as u32))),
+                .with_timestamp(Some(Utc.ymd(2020, 8, 18).and_hms_nano_opt(21, 0, 0, i as u32).expect("invalid timestamp"))),
             );
             events.push(event);
         }

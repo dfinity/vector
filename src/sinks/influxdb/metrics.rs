@@ -81,6 +81,7 @@ pub struct InfluxDbConfig {
     pub request: TowerRequestConfig,
 
     /// A map of additional tags, in the form of key/value pairs, to add to each measurement.
+    #[configurable(metadata(docs::additional_props_description = "A tag key/value pair."))]
     pub tags: Option<HashMap<String, String>>,
 
     #[configurable(derived)]
@@ -278,7 +279,7 @@ fn encode_events(
         let (metric_type, fields) = get_type_and_fields(event.value(), quantiles);
 
         let mut unwrapped_tags = tags.unwrap_or_default();
-        unwrapped_tags.insert("metric_type".to_owned(), metric_type.to_owned());
+        unwrapped_tags.replace("metric_type".to_owned(), metric_type.to_owned());
 
         if let Err(error_message) = influx_line_protocol(
             protocol_version,

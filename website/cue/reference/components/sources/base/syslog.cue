@@ -2,12 +2,12 @@ package metadata
 
 base: components: sources: syslog: configuration: {
 	address: {
-		description:   "The address to listen for connections on."
+		description:   "The socket address to listen for connections on."
 		relevant_when: "mode = \"tcp\" or mode = \"udp\""
 		required:      true
 		type: {
 			number: {}
-			string: syntax: "literal"
+			string: {}
 		}
 	}
 	connection_limit: {
@@ -28,7 +28,7 @@ base: components: sources: syslog: configuration: {
 			[global_host_key]: https://vector.dev/docs/reference/configuration/global-options/#log_schema.host_key
 			"""
 		required: false
-		type: string: syntax: "literal"
+		type: string: {}
 	}
 	keepalive: {
 		description:   "TCP keepalive settings for socket-based components."
@@ -50,7 +50,8 @@ base: components: sources: syslog: configuration: {
 		type: uint: default: 102400
 	}
 	mode: {
-		required: true
+		description: "The type of socket to use."
+		required:    true
 		type: string: enum: {
 			tcp:  "Listen on TCP."
 			udp:  "Listen on UDP."
@@ -65,7 +66,7 @@ base: components: sources: syslog: configuration: {
 			"""
 		relevant_when: "mode = \"unix\""
 		required:      true
-		type: string: syntax: "literal"
+		type: string: {}
 	}
 	receive_buffer_bytes: {
 		description: """
@@ -101,21 +102,21 @@ base: components: sources: syslog: configuration: {
 					they are defined.
 					"""
 				required: false
-				type: array: items: type: string: syntax: "literal"
+				type: array: items: type: string: examples: ["h2"]
 			}
 			ca_file: {
 				description: """
 					Absolute path to an additional CA certificate file.
 
-					The certficate must be in the DER or PEM (X.509) format. Additionally, the certificate can be provided as an inline string in PEM format.
+					The certificate must be in the DER or PEM (X.509) format. Additionally, the certificate can be provided as an inline string in PEM format.
 					"""
 				required: false
-				type: string: syntax: "literal"
+				type: string: examples: ["/path/to/certificate_authority.crt"]
 			}
 			client_metadata_key: {
 				description: "Event field for client certificate metadata."
 				required:    false
-				type: string: syntax: "literal"
+				type: string: {}
 			}
 			crt_file: {
 				description: """
@@ -127,7 +128,7 @@ base: components: sources: syslog: configuration: {
 					If this is set, and is not a PKCS#12 archive, `key_file` must also be set.
 					"""
 				required: false
-				type: string: syntax: "literal"
+				type: string: examples: ["/path/to/host_certificate.crt"]
 			}
 			enabled: {
 				description: """
@@ -146,7 +147,7 @@ base: components: sources: syslog: configuration: {
 					The key must be in DER or PEM (PKCS#8) format. Additionally, the key can be provided as an inline string in PEM format.
 					"""
 				required: false
-				type: string: syntax: "literal"
+				type: string: examples: ["/path/to/host_certificate.key"]
 			}
 			key_pass: {
 				description: """
@@ -155,7 +156,7 @@ base: components: sources: syslog: configuration: {
 					This has no effect unless `key_file` is set.
 					"""
 				required: false
-				type: string: syntax: "literal"
+				type: string: examples: ["${KEY_PASS_ENV_VAR}", "PassWord1"]
 			}
 			verify_certificate: {
 				description: """

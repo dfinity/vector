@@ -124,7 +124,7 @@ impl Definition {
     }
 
     /// An object with any fields, and the `Legacy` namespace.
-    /// This is the default schema for a source that does not explicitely provide one yet.
+    /// This is the default schema for a source that does not explicitly provide one yet.
     pub fn default_legacy_namespace() -> Self {
         Self::new_with_default_metadata(Kind::any_object(), [LogNamespace::Legacy])
     }
@@ -447,6 +447,10 @@ impl Definition {
         &self.event_kind
     }
 
+    pub fn event_kind_mut(&mut self) -> &mut Kind {
+        &mut self.event_kind
+    }
+
     pub fn metadata_kind(&self) -> &Kind {
         &self.metadata_kind
     }
@@ -506,7 +510,7 @@ mod test_utils {
         /// If the definition is not valid for the event.
         pub fn assert_valid_for_event(&self, event: &Event) {
             if let Err(err) = self.is_valid_for_event(event) {
-                panic!("Schema definition assertion failed: {}", err);
+                panic!("Schema definition assertion failed: {err}");
             }
         }
     }
@@ -588,7 +592,7 @@ mod tests {
             },
         ] {
             let result = definition.is_valid_for_event(&event);
-            assert_eq!(result.is_ok(), valid, "{}", title);
+            assert_eq!(result.is_ok(), valid, "{title}");
         }
     }
 
@@ -674,7 +678,7 @@ mod tests {
             ),
         ]) {
             let got = Definition::empty_legacy_namespace().with_event_field(&path, kind, meaning);
-            assert_eq!(got.event_kind(), want.event_kind(), "{}", title);
+            assert_eq!(got.event_kind(), want.event_kind(), "{title}");
         }
     }
 
@@ -758,7 +762,7 @@ mod tests {
             let mut got = Definition::new_with_default_metadata(Kind::object(BTreeMap::new()), []);
             got = got.optional_field(&path, kind, meaning);
 
-            assert_eq!(got, want, "{}", title);
+            assert_eq!(got, want, "{title}");
         }
     }
 
@@ -1001,7 +1005,7 @@ mod tests {
         ]) {
             let got = this.merge(other);
 
-            assert_eq!(got, want, "{}", title);
+            assert_eq!(got, want, "{title}");
         }
     }
 }

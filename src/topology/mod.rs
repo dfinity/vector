@@ -10,6 +10,7 @@ pub(super) use vector_core::fanout;
 pub mod schema;
 
 pub mod builder;
+mod controller;
 mod ready_arrays;
 mod running;
 mod task;
@@ -23,6 +24,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+pub use controller::{ReloadOutcome, TopologyController};
 use futures::{Future, FutureExt};
 pub(super) use running::RunningTopology;
 use tokio::sync::{mpsc, watch};
@@ -61,7 +63,7 @@ pub struct TapResource {
     pub inputs: HashMap<ComponentKey, Inputs<OutputId>>,
     // Source component keys used to warn against invalid pattern matches
     pub source_keys: Vec<String>,
-    // Sink component keys used to warn against invalid pattern amtches
+    // Sink component keys used to warn against invalid pattern matches
     pub sink_keys: Vec<String>,
     // Components removed on a reload (used to drop TapSinks)
     pub removals: HashSet<ComponentKey>,
@@ -75,7 +77,10 @@ pub async fn start_validated(
     config: Config,
     diff: ConfigDiff,
     mut pieces: Pieces,
-) -> Option<(RunningTopology, mpsc::UnboundedReceiver<()>)> {
+) -> Option<(
+    RunningTopology,
+    (mpsc::UnboundedSender<()>, mpsc::UnboundedReceiver<()>),
+)> {
     let (abort_tx, abort_rx) = mpsc::unbounded_channel();
 
     let expire_metrics = match (
@@ -103,7 +108,7 @@ pub async fn start_validated(
         return None;
     }
 
-    let mut running_topology = RunningTopology::new(config, abort_tx);
+    let mut running_topology = RunningTopology::new(config, abort_tx.clone());
 
     if !running_topology
         .run_healthchecks(&diff, &mut pieces, running_topology.config.healthchecks)
@@ -114,7 +119,7 @@ pub async fn start_validated(
     running_topology.connect_diff(&diff, &mut pieces).await;
     running_topology.spawn_diff(&diff, pieces);
 
-    Some((running_topology, abort_rx))
+    Some((running_topology, (abort_tx, abort_rx)))
 }
 
 pub async fn build_or_log_errors(

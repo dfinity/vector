@@ -4,6 +4,7 @@ use bytes::Bytes;
 use futures::{Stream, StreamExt};
 use lru::LruCache;
 use vector_config::configurable_component;
+use vector_core::config::LogNamespace;
 
 use crate::{
     config::{
@@ -41,7 +42,6 @@ pub enum FieldMatchConfig {
             docs::examples = "field1",
             docs::examples = "parent.child_field"
         ))]
-        #[configurable(transparent)]
         Vec<String>,
     ),
 
@@ -54,7 +54,6 @@ pub enum FieldMatchConfig {
             docs::examples = "host",
             docs::examples = "hostname"
         ))]
-        #[configurable(transparent)]
         Vec<String>,
     ),
 }
@@ -149,7 +148,7 @@ impl TransformConfig for DedupeConfig {
         Input::log()
     }
 
-    fn outputs(&self, merged_definition: &schema::Definition) -> Vec<Output> {
+    fn outputs(&self, merged_definition: &schema::Definition, _: LogNamespace) -> Vec<Output> {
         vec![Output::default(DataType::Log).with_schema_definition(merged_definition.clone())]
     }
 }

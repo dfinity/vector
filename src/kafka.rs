@@ -5,7 +5,9 @@ use snafu::Snafu;
 use vector_common::sensitive_string::SensitiveString;
 use vector_config::configurable_component;
 
-use crate::{internal_events::KafkaStatisticsReceived, tls::TlsEnableableConfig};
+use crate::{
+    internal_events::KafkaStatisticsReceived, tls::TlsEnableableConfig, tls::PEM_START_MARKER,
+};
 
 #[derive(Debug, Snafu)]
 enum KafkaError {
@@ -63,12 +65,16 @@ pub struct KafkaSaslConfig {
     pub(crate) enabled: Option<bool>,
 
     /// The SASL username.
+    #[configurable(metadata(docs::examples = "username"))]
     pub(crate) username: Option<String>,
 
     /// The SASL password.
+    #[configurable(metadata(docs::examples = "password"))]
     pub(crate) password: Option<SensitiveString>,
 
     /// The SASL mechanism to use.
+    #[configurable(metadata(docs::examples = "SCRAM-SHA-256"))]
+    #[configurable(metadata(docs::examples = "SCRAM-SHA-512"))]
     pub(crate) mechanism: Option<String>,
 }
 
@@ -100,15 +106,34 @@ impl KafkaAuthConfig {
 
         if tls_enabled {
             let tls = self.tls.as_ref().unwrap();
+
             if let Some(path) = &tls.options.ca_file {
-                client.set("ssl.ca.location", pathbuf_to_string(path)?);
+                let text = pathbuf_to_string(path)?;
+                if text.contains(PEM_START_MARKER) {
+                    client.set("ssl.ca.pem", text);
+                } else {
+                    client.set("ssl.ca.location", text);
+                }
             }
+
             if let Some(path) = &tls.options.crt_file {
-                client.set("ssl.certificate.location", pathbuf_to_string(path)?);
+                let text = pathbuf_to_string(path)?;
+                if text.contains(PEM_START_MARKER) {
+                    client.set("ssl.certificate.pem", text);
+                } else {
+                    client.set("ssl.certificate.location", text);
+                }
             }
+
             if let Some(path) = &tls.options.key_file {
-                client.set("ssl.key.location", pathbuf_to_string(path)?);
+                let text = pathbuf_to_string(path)?;
+                if text.contains(PEM_START_MARKER) {
+                    client.set("ssl.key.pem", text);
+                } else {
+                    client.set("ssl.key.location", text);
+                }
             }
+
             if let Some(pass) = &tls.options.key_pass {
                 client.set("ssl.key.password", pass);
             }

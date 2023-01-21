@@ -10,7 +10,7 @@ use vector_common::internal_event::{
     ByteSize, BytesSent, InternalEventHandle, Protocol, Registered,
 };
 use vector_config::configurable_component;
-use vector_core::ByteSizeOf;
+use vector_core::EstimatedJsonEncodedSizeOf;
 
 use crate::{
     codecs::{Encoder, EncodingConfig, Transformer},
@@ -265,12 +265,6 @@ impl EncodedLength for RedisKvEntry {
     }
 }
 
-impl ByteSizeOf for RedisKvEntry {
-    fn allocated_bytes(&self) -> usize {
-        self.key.len() + self.value.len()
-    }
-}
-
 fn encode_event(
     mut event: Event,
     key: &Template,
@@ -288,7 +282,7 @@ fn encode_event(
         })
         .ok()?;
 
-    let event_byte_size = event.size_of();
+    let event_byte_size = event.estimated_json_encoded_size_of();
 
     transformer.transform(&mut event);
 
@@ -402,7 +396,7 @@ impl Service<Vec<RedisKvEntry>> for RedisSink {
 mod tests {
     use std::{collections::HashMap, convert::TryFrom};
 
-    use codecs::{JsonSerializer, TextSerializer};
+    use codecs::{JsonSerializerConfig, TextSerializerConfig};
     use vector_core::event::LogEvent;
 
     use super::*;
@@ -422,7 +416,7 @@ mod tests {
             evt.into(),
             &Template::try_from("key").unwrap(),
             &Default::default(),
-            &mut Encoder::<()>::new(JsonSerializer::new().into()),
+            &mut Encoder::<()>::new(JsonSerializerConfig::default().build().into()),
         )
         .unwrap()
         .item
@@ -439,7 +433,7 @@ mod tests {
             evt.into(),
             &Template::try_from("key").unwrap(),
             &Default::default(),
-            &mut Encoder::<()>::new(TextSerializer::new().into()),
+            &mut Encoder::<()>::new(TextSerializerConfig::default().build().into()),
         )
         .unwrap()
         .item
@@ -457,7 +451,7 @@ mod tests {
             evt.into(),
             &Template::try_from("key").unwrap(),
             &Transformer::new(None, Some(vec!["key".into()]), None).unwrap(),
-            &mut Encoder::<()>::new(JsonSerializer::new().into()),
+            &mut Encoder::<()>::new(JsonSerializerConfig::default().build().into()),
         )
         .unwrap()
         .item
@@ -501,7 +495,7 @@ mod integration_tests {
         let cnf = RedisSinkConfig {
             url: redis_server(),
             key: key.clone(),
-            encoding: JsonSerializerConfig::new().into(),
+            encoding: JsonSerializerConfig::default().into(),
             data_type: DataTypeConfig::List,
             list_option: Some(ListOption {
                 method: Method::LPush,
@@ -564,7 +558,7 @@ mod integration_tests {
         let cnf = RedisSinkConfig {
             url: redis_server(),
             key: key.clone(),
-            encoding: JsonSerializerConfig::new().into(),
+            encoding: JsonSerializerConfig::default().into(),
             data_type: DataTypeConfig::List,
             list_option: Some(ListOption {
                 method: Method::RPush,
@@ -643,7 +637,7 @@ mod integration_tests {
         let cnf = RedisSinkConfig {
             url: redis_server(),
             key: key.clone(),
-            encoding: JsonSerializerConfig::new().into(),
+            encoding: JsonSerializerConfig::default().into(),
             data_type: DataTypeConfig::Channel,
             list_option: None,
             batch: BatchConfig::default(),

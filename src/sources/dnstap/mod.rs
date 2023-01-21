@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
+use base64::prelude::{Engine as _, BASE64_STANDARD};
 use bytes::Bytes;
-use lookup::{owned_value_path, path};
+use lookup::{owned_value_path, path, OwnedValuePath};
 use value::{kind::Collection, Kind};
 use vector_common::internal_event::{
     ByteSize, BytesReceived, InternalEventHandle as _, Protocol, Registered,
@@ -21,6 +22,7 @@ pub use parser::{parse_dnstap_data, DnstapParser};
 
 pub mod schema;
 use dnsmsg_parser::{dns_message, dns_message_parser};
+use lookup::lookup_v2::{parse_value_path, OptionalValuePath};
 pub use schema::DnstapEventSchema;
 use vector_core::config::{LegacyKey, LogNamespace};
 
@@ -39,7 +41,7 @@ pub struct DnstapConfig {
     /// By default, the [global `log_schema.host_key` option][global_host_key] is used.
     ///
     /// [global_host_key]: https://vector.dev/docs/reference/configuration/global-options/#log_schema.host_key
-    pub host_key: Option<String>,
+    pub host_key: Option<OptionalValuePath>,
 
     /// Absolute path to the socket file to read DNSTAP data from.
     ///
@@ -68,6 +70,7 @@ pub struct DnstapConfig {
     /// The size, in bytes, of the receive buffer used for the socket.
     ///
     /// This should not typically needed to be changed.
+    #[configurable(metadata(docs::type_unit = "bytes"))]
     pub socket_receive_buffer_size: Option<usize>,
 
     /// The size, in bytes, of the send buffer used for the socket.
@@ -199,7 +202,7 @@ pub struct DnstapFrameHandler {
     socket_file_mode: Option<u32>,
     socket_receive_buffer_size: Option<usize>,
     socket_send_buffer_size: Option<usize>,
-    host_key: String,
+    host_key: Option<OwnedValuePath>,
     timestamp_key: String,
     source_type_key: String,
     bytes_received: Registered<BytesReceived>,
@@ -213,10 +216,10 @@ impl DnstapFrameHandler {
 
         let schema = DnstapConfig::event_schema(timestamp_key);
 
-        let host_key = config
-            .host_key
-            .clone()
-            .unwrap_or_else(|| log_schema().host_key().to_string());
+        let host_key = config.host_key.clone().map_or_else(
+            || parse_value_path(log_schema().host_key()).ok(),
+            |k| k.path,
+        );
 
         Self {
             max_frame_length: config.max_frame_length,
@@ -279,7 +282,7 @@ impl FrameHandler for DnstapFrameHandler {
             self.log_namespace.insert_source_metadata(
                 DnstapConfig::NAME,
                 &mut log_event,
-                Some(LegacyKey::Overwrite(path!(self.host_key()))),
+                self.host_key.as_ref().map(LegacyKey::Overwrite),
                 path!("host"),
                 host,
             );
@@ -288,7 +291,7 @@ impl FrameHandler for DnstapFrameHandler {
         if self.raw_data_only {
             log_event.insert(
                 self.schema.dnstap_root_data_schema().raw_data(),
-                base64::encode(&frame),
+                BASE64_STANDARD.encode(&frame),
             );
             let event = Event::from(log_event);
             Some(event)
@@ -332,8 +335,8 @@ impl FrameHandler for DnstapFrameHandler {
         self.socket_send_buffer_size
     }
 
-    fn host_key(&self) -> &str {
-        self.host_key.as_str()
+    fn host_key(&self) -> &Option<OwnedValuePath> {
+        &self.host_key
     }
 
     fn source_type_key(&self) -> &str {
@@ -438,7 +441,7 @@ mod integration_tests {
 
                 DnstapConfig {
                     max_frame_length: 102400,
-                    host_key: Some("key".to_string()),
+                    host_key: Some(OptionalValuePath::from(owned_value_path!("key"))),
                     socket_path: socket,
                     raw_data_only: Some(raw_data),
                     multithreaded: Some(false),
@@ -513,7 +516,7 @@ mod integration_tests {
         if raw_data {
             assert_eq!(events.len(), 2);
             assert!(
-                events.iter().all(|v| v.as_log().get("rawData") != None),
+                events.iter().all(|v| v.as_log().get("rawData").is_some()),
                 "No rawData field!"
             );
         } else if query_event == "query" {

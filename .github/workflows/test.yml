@@ -111,7 +111,6 @@ jobs:
       - run: make test
         env:
           CARGO_BUILD_JOBS: 5
-      - run: make test-enterprise
       - name: Upload test results
         run: scripts/upload-test-results.sh
         if: always()
@@ -204,6 +203,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
       - run: echo "::add-matcher::.github/matchers/rust.json"
+      - run: 'cargo install cross --version 0.2.4 --force --locked'
       # Why is this build, not check? Because we need to make sure the linking phase works.
       # aarch64 and musl in particular are notoriously hard to link.
       # While it may be tempting to slot a `check` in here for quickness, please don't.
@@ -251,7 +251,6 @@ jobs:
       - run: echo "::add-matcher::.github/matchers/rust.json"
       - run: make test
       - run: make test-behavior
-      - run: make test-enterprise
 
   test-windows:
     name: Unit - Windows
@@ -262,7 +261,6 @@ jobs:
       - uses: actions/checkout@v3
       - run: .\scripts\environment\bootstrap-windows-2019.ps1
       - run: make test
-      - run: make test-enterprise
 
   test-vrl:
     name: VRL - Linux
@@ -338,10 +336,7 @@ jobs:
             ${{ runner.os }}-cargo-
       - name: Enable Rust matcher
         run: echo "::add-matcher::.github/matchers/rust.json"
-      - name: Check style
-        run: make check-style
-      - name: Check code format || needs.changes.outputs.source == 'true'
-        if: needs.changes.outputs.source == 'true'
+      - name: Check code format
         run: make check-fmt
       - name: Check clippy
         if: needs.changes.outputs.source == 'true'

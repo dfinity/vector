@@ -6,6 +6,7 @@ use std::{
     path::PathBuf,
 };
 
+use codecs::MetricTagValues;
 use lookup::lookup_v2::{parse_value_path, ValuePath};
 use lookup::{metadata_path, owned_value_path, path, PathPrefix};
 use snafu::{ResultExt, Snafu};
@@ -15,7 +16,6 @@ use vector_config::configurable_component;
 use vector_core::compile_vrl;
 use vector_core::config::LogNamespace;
 use vector_core::schema::Definition;
-
 use vector_vrl_functions::set_semantic_meaning::MeaningList;
 use vrl::prelude::state::TypeState;
 use vrl::{
@@ -64,6 +64,15 @@ pub struct RemapConfig {
     #[configurable(metadata(docs::examples = "./my/program.vrl",))]
     pub file: Option<PathBuf>,
 
+    /// When set to `single`, metric tag values will be exposed as single strings, the
+    /// same as they were before this config option. Tags with multiple values will show the last assigned value, and null values
+    /// will be ignored.
+    ///
+    /// When set to `full`, all metric tags will be exposed as arrays of either string or null
+    /// values.
+    #[serde(default)]
+    pub metric_tag_values: MetricTagValues,
+
     /// The name of the timezone to apply to timestamp conversions that do not contain an explicit
     /// time zone.
     ///
@@ -73,7 +82,7 @@ pub struct RemapConfig {
     /// [global_timezone]: https://vector.dev/docs/reference/configuration//global-options#timezone
     /// [tz_database]: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
     #[serde(default)]
-    pub timezone: TimeZone,
+    pub timezone: Option<TimeZone>,
 
     /// Drops any event that encounters an error during processing.
     ///
@@ -194,7 +203,7 @@ impl TransformConfig for RemapConfig {
 
         // TODO: We could improve on this by adding support for non-fatal error
         // messages in the topology. This would make the topology responsible
-        // for printing warnings (including potentially emiting metrics),
+        // for printing warnings (including potentially emitting metrics),
         // instead of individual transforms.
         if !warnings.is_empty() {
             warn!(message = "VRL compilation warning.", %warnings);
@@ -207,7 +216,7 @@ impl TransformConfig for RemapConfig {
         Input::all()
     }
 
-    fn outputs(&self, input_definition: &schema::Definition) -> Vec<Output> {
+    fn outputs(&self, input_definition: &schema::Definition, _: LogNamespace) -> Vec<Output> {
         // We need to compile the VRL program in order to know the schema definition output of this
         // transform. We ignore any compilation errors, as those are caught by the transform build
         // step.
@@ -316,6 +325,7 @@ where
     default_schema_definition: Arc<schema::Definition>,
     dropped_schema_definition: Arc<schema::Definition>,
     runner: Runner,
+    metric_tag_values: MetricTagValues,
 }
 
 pub trait VrlRunner {
@@ -396,13 +406,16 @@ where
         Ok(Remap {
             component_key: context.key.clone(),
             program,
-            timezone: config.timezone,
+            timezone: config
+                .timezone
+                .unwrap_or_else(|| context.globals.timezone()),
             drop_on_error: config.drop_on_error,
             drop_on_abort: config.drop_on_abort,
             reroute_dropped: config.reroute_dropped,
             default_schema_definition: Arc::new(default_schema_definition),
             dropped_schema_definition: Arc::new(dropped_schema_definition),
             runner,
+            metric_tag_values: config.metric_tag_values,
         })
     }
 
@@ -449,16 +462,16 @@ where
             },
             Event::Metric(ref mut metric) => {
                 let m = log_schema().metadata_key();
-                metric.insert_tag(format!("{}.dropped.reason", m), reason.into());
-                metric.insert_tag(
+                metric.replace_tag(format!("{}.dropped.reason", m), reason.into());
+                metric.replace_tag(
                     format!("{}.dropped.component_id", m),
                     self.component_key
                         .as_ref()
                         .map(ToString::to_string)
                         .unwrap_or_else(String::new),
                 );
-                metric.insert_tag(format!("{}.dropped.component_type", m), "remap".into());
-                metric.insert_tag(format!("{}.dropped.component_kind", m), "transform".into());
+                metric.replace_tag(format!("{}.dropped.component_type", m), "remap".into());
+                metric.replace_tag(format!("{}.dropped.component_kind", m), "transform".into());
             }
             Event::Trace(ref mut trace) => {
                 trace.insert(
@@ -499,7 +512,14 @@ where
             None
         };
 
-        let mut target = VrlTarget::new(event, self.program.info());
+        let mut target = VrlTarget::new(
+            event,
+            self.program.info(),
+            match self.metric_tag_values {
+                MetricTagValues::Single => false,
+                MetricTagValues::Full => true,
+            },
+        );
         let result = self.run_vrl(&mut target);
 
         match result {
@@ -589,7 +609,7 @@ mod tests {
 
     use indoc::{formatdoc, indoc};
     use vector_common::btreemap;
-    use vector_core::{event::EventMetadata, metric_tags};
+    use vector_core::{config::GlobalOptions, event::EventMetadata, metric_tags};
 
     use super::*;
     use crate::{
@@ -605,6 +625,7 @@ mod tests {
         transforms::test::create_topology,
         transforms::OutputBuffer,
     };
+    use chrono::DateTime;
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::ReceiverStream;
 
@@ -683,7 +704,6 @@ mod tests {
         let conf = RemapConfig {
             source: Some(".foo = .sentinel".to_string()),
             file: None,
-            timezone: TimeZone::default(),
             drop_on_error: true,
             drop_on_abort: false,
             ..Default::default()
@@ -736,7 +756,6 @@ mod tests {
                 .to_string(),
             ),
             file: None,
-            timezone: TimeZone::default(),
             drop_on_error: true,
             drop_on_abort: false,
             ..Default::default()
@@ -774,7 +793,6 @@ mod tests {
                 .to_owned(),
             ),
             file: None,
-            timezone: TimeZone::default(),
             drop_on_error: true,
             drop_on_abort: false,
             ..Default::default()
@@ -815,7 +833,6 @@ mod tests {
                 .baz = 12
             "#}),
             file: None,
-            timezone: TimeZone::default(),
             drop_on_error: false,
             drop_on_abort: false,
             ..Default::default()
@@ -844,7 +861,6 @@ mod tests {
                 .baz = 12
             "#}),
             file: None,
-            timezone: TimeZone::default(),
             drop_on_error: true,
             drop_on_abort: false,
             ..Default::default()
@@ -868,7 +884,6 @@ mod tests {
                 .baz = 12
             "#}),
             file: None,
-            timezone: TimeZone::default(),
             drop_on_error: false,
             drop_on_abort: false,
             ..Default::default()
@@ -897,7 +912,6 @@ mod tests {
                 .baz = 12
             "#}),
             file: None,
-            timezone: TimeZone::default(),
             drop_on_error: false,
             drop_on_abort: false,
             ..Default::default()
@@ -926,7 +940,6 @@ mod tests {
                 .baz = 12
             "#}),
             file: None,
-            timezone: TimeZone::default(),
             drop_on_error: false,
             drop_on_abort: true,
             ..Default::default()
@@ -954,7 +967,6 @@ mod tests {
                     .to_string(),
             ),
             file: None,
-            timezone: TimeZone::default(),
             drop_on_error: true,
             drop_on_abort: false,
             ..Default::default()
@@ -980,6 +992,75 @@ mod tests {
     }
 
     #[test]
+    fn remap_timezone_fallback() {
+        let error =
+            Event::try_from(serde_json::json!({"timestamp": "2022-12-27 00:00:00"})).unwrap();
+        let conf = RemapConfig {
+            source: Some(formatdoc! {r#"
+                .timestamp = parse_timestamp!(.timestamp, format: "%Y-%m-%d %H:%M:%S")
+            "#}),
+            drop_on_error: true,
+            drop_on_abort: true,
+            reroute_dropped: true,
+            ..Default::default()
+        };
+        let context = TransformContext {
+            key: Some(ComponentKey::from("remapper")),
+            globals: GlobalOptions {
+                timezone: Some(TimeZone::parse("America/Los_Angeles").unwrap()),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let mut tform = Remap::new_ast(conf, &context).unwrap().0;
+
+        let output = transform_one_fallible(&mut tform, error).unwrap();
+        let log = output.as_log();
+        assert_eq!(
+            log["timestamp"],
+            DateTime::<chrono::Utc>::from(
+                DateTime::parse_from_rfc3339("2022-12-27T00:00:00-08:00").unwrap()
+            )
+            .into()
+        );
+    }
+
+    #[test]
+    fn remap_timezone_override() {
+        let error =
+            Event::try_from(serde_json::json!({"timestamp": "2022-12-27 00:00:00"})).unwrap();
+        let conf = RemapConfig {
+            source: Some(formatdoc! {r#"
+                .timestamp = parse_timestamp!(.timestamp, format: "%Y-%m-%d %H:%M:%S")
+            "#}),
+            drop_on_error: true,
+            drop_on_abort: true,
+            reroute_dropped: true,
+            timezone: Some(TimeZone::parse("America/Los_Angeles").unwrap()),
+            ..Default::default()
+        };
+        let context = TransformContext {
+            key: Some(ComponentKey::from("remapper")),
+            globals: GlobalOptions {
+                timezone: Some(TimeZone::parse("Etc/UTC").unwrap()),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let mut tform = Remap::new_ast(conf, &context).unwrap().0;
+
+        let output = transform_one_fallible(&mut tform, error).unwrap();
+        let log = output.as_log();
+        assert_eq!(
+            log["timestamp"],
+            DateTime::<chrono::Utc>::from(
+                DateTime::parse_from_rfc3339("2022-12-27T00:00:00-08:00").unwrap()
+            )
+            .into()
+        );
+    }
+
+    #[test]
     fn check_remap_branching() {
         let happy = Event::try_from(serde_json::json!({"hello": "world"})).unwrap();
         let abort = Event::try_from(serde_json::json!({"hello": "goodbye"})).unwrap();
@@ -991,7 +1072,7 @@ mod tests {
                 MetricKind::Absolute,
                 MetricValue::Counter { value: 1.0 },
             );
-            metric.insert_tag("hello".into(), "world".into());
+            metric.replace_tag("hello".into(), "world".into());
             Event::Metric(metric)
         };
 
@@ -1001,7 +1082,7 @@ mod tests {
                 MetricKind::Absolute,
                 MetricValue::Counter { value: 1.0 },
             );
-            metric.insert_tag("hello".into(), "goodbye".into());
+            metric.replace_tag("hello".into(), "goodbye".into());
             Event::Metric(metric)
         };
 
@@ -1011,7 +1092,7 @@ mod tests {
                 MetricKind::Absolute,
                 MetricValue::Counter { value: 1.0 },
             );
-            metric.insert_tag("not_hello".into(), "oops".into());
+            metric.replace_tag("not_hello".into(), "oops".into());
             Event::Metric(metric)
         };
 
@@ -1294,10 +1375,13 @@ mod tests {
         .with_event_field(&owned_value_path!("tags"), Kind::any(), None);
 
         assert_eq!(
-            conf.outputs(&schema::Definition::new_with_default_metadata(
-                Kind::any_object(),
-                [LogNamespace::Legacy]
-            )),
+            conf.outputs(
+                &schema::Definition::new_with_default_metadata(
+                    Kind::any_object(),
+                    [LogNamespace::Legacy]
+                ),
+                LogNamespace::Legacy
+            ),
             vec![Output::default(DataType::all()).with_schema_definition(schema_definition)]
         );
 
@@ -1379,7 +1463,7 @@ mod tests {
 
     fn transform_one(ft: &mut dyn SyncTransform, event: Event) -> Option<Event> {
         let out = collect_outputs(ft, event);
-        assert_eq!(0, out.named.iter().map(|(_, v)| v.len()).sum::<usize>());
+        assert_eq!(0, out.named.values().map(|v| v.len()).sum::<usize>());
         assert!(out.primary.len() <= 1);
         out.primary.into_events().next()
     }

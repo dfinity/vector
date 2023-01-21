@@ -4,8 +4,10 @@ use bytes::Bytes;
 use chrono::Utc;
 use codecs::{BytesDeserializer, BytesDeserializerConfig};
 use file_source::{
+    calculate_ignore_before,
     paths_provider::glob::{Glob, MatchOptions},
     Checkpointer, FileFingerprint, FileServer, FingerprintStrategy, Fingerprinter, Line, ReadFrom,
+    ReadFromConfig,
 };
 use futures::{FutureExt, Stream, StreamExt, TryFutureExt};
 use lookup::{
@@ -77,9 +79,9 @@ pub struct FileConfig {
 
     /// Array of file patterns to exclude. [Globbing](https://vector.dev/docs/reference/configuration/sources/file/#globbing) is supported.
     ///
-    /// Takes precedence over the `include` option. Note that the `exclude` patterns are applied _after_ Vector attempts to glob everything
-    /// in `include`. That is, Vector will still try to list all of the files matched by `include` and then filter them by the `exclude`
-    /// patterns. This can be impactful if `include` contains directories with contents that vector does not have access to.
+    /// Takes precedence over the `include` option. Note: The `exclude` patterns are applied _after_ the attempt to glob everything
+    /// in `include`. This means that all files are first matched by `include` and then filtered by the `exclude`
+    /// patterns. This can be impactful if `include` contains directories with contents that are not accessible.
     #[serde(default)]
     pub exclude: Vec<PathBuf>,
 
@@ -120,7 +122,7 @@ pub struct FileConfig {
 
     /// Overrides the name of the log field used to add the current hostname to each event.
     ///
-    /// The value will be the current hostname for wherever Vector is running.
+    /// The value is the current hostname.
     ///
     /// By default, the [global `log_schema.host_key` option][global_host_key] is used.
     ///
@@ -130,7 +132,7 @@ pub struct FileConfig {
 
     /// The directory used to persist file checkpoint positions.
     ///
-    /// By default, the global `data_dir` option is used. Please make sure the user Vector is running as has write permissions to this directory.
+    /// By default, the global `data_dir` option is used. Make sure the running user has write permissions to this directory.
     #[serde(default)]
     pub data_dir: Option<PathBuf>,
 
@@ -144,7 +146,7 @@ pub struct FileConfig {
 
     /// Delay between file discovery calls, in milliseconds.
     ///
-    /// This controls the interval at which Vector searches for files. Higher value result in greater chances of some short living files being missed between searches, but lower value increases the performance impact of file discovery.
+    /// This controls the interval at which files are searched. A higher value results in greater chances of some short-lived files being missed between searches, but a lower value increases the performance impact of file discovery.
     #[serde(
         alias = "glob_minimum_cooldown",
         default = "default_glob_minimum_cooldown_ms"
@@ -243,13 +245,15 @@ fn default_line_delimiter() -> String {
 #[configurable_component]
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[serde(tag = "strategy", rename_all = "snake_case")]
+#[configurable(metadata(
+    docs::enum_tag_description = "The strategy used to uniquely identify files.\n\nThis is important for checkpointing when file rotation is used."
+))]
 pub enum FingerprintConfig {
     /// Read lines from the beginning of the file and compute a checksum over them.
     Checksum {
         /// Maximum number of bytes to use, from the lines that are read, for generating the checksum.
-        ///
-        /// TODO: Should we properly expose this in the documentation? There could definitely be value in allowing more
-        /// bytes to be used for the checksum generation, but we should commit to exposing it rather than hiding it.
+        // TODO: Should we properly expose this in the documentation? There could definitely be value in allowing more
+        // bytes to be used for the checksum generation, but we should commit to exposing it rather than hiding it.
         #[serde(alias = "fingerprint_bytes")]
         bytes: Option<usize>,
 
@@ -267,7 +271,9 @@ pub enum FingerprintConfig {
         lines: usize,
     },
 
-    /// Use the [device and inode](https://en.wikipedia.org/wiki/Inode) as the identifier.
+    /// Use the [device and inode][inode] as the identifier.
+    ///
+    /// [inode]: https://en.wikipedia.org/wiki/Inode
     #[serde(rename = "device_and_inode")]
     DevInode,
 }
@@ -284,26 +290,6 @@ impl Default for FingerprintConfig {
 
 const fn default_lines() -> usize {
     1
-}
-/// File position to use when reading a new file.
-#[configurable_component]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum ReadFromConfig {
-    /// Read from the beginning of the file.
-    Beginning,
-
-    /// Start reading from the current end of the file.
-    End,
-}
-
-impl From<ReadFromConfig> for ReadFrom {
-    fn from(rfc: ReadFromConfig) -> Self {
-        match rfc {
-            ReadFromConfig::Beginning => ReadFrom::Beginning,
-            ReadFromConfig::End => ReadFrom::End,
-        }
-    }
 }
 
 impl From<FingerprintConfig> for FingerprintStrategy {
@@ -480,9 +466,7 @@ pub fn file_source(
         return Box::pin(future::ready(Err(())));
     }
 
-    let ignore_before = config
-        .ignore_older_secs
-        .map(|secs| Utc::now() - chrono::Duration::seconds(secs as i64));
+    let ignore_before = calculate_ignore_before(config.ignore_older_secs);
     let glob_minimum_cooldown = Duration::from_millis(config.glob_minimum_cooldown_ms);
     let (ignore_checkpoints, read_from) = reconcile_position_options(
         config.start_at_beginning,
@@ -616,9 +600,7 @@ pub fn file_source(
         // Once file server ends this will run until it has finished processing remaining
         // logs in the queue.
         let span = Span::current();
-        let span2 = span.clone();
         let mut messages = messages.map(move |line| {
-            let _enter = span2.enter();
             let mut event = create_event(
                 line.text,
                 line.start_offset,
@@ -1351,7 +1333,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn file_key_nonacknowledged() {
+    async fn file_key_no_acknowledge() {
         file_key(NoAcks).await
     }
 
@@ -1455,7 +1437,7 @@ mod tests {
 
     #[cfg(target_os = "linux")] // see #7988
     #[tokio::test]
-    async fn file_start_position_server_restart_nonacknowledged() {
+    async fn file_start_position_server_restart_no_acknowledge() {
         file_start_position_server_restart(NoAcks).await
     }
 
@@ -1563,7 +1545,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn file_start_position_server_restart_with_file_rotation_nonacknowledged() {
+    async fn file_start_position_server_restart_with_file_rotation_no_acknowledge() {
         file_start_position_server_restart_with_file_rotation(NoAcks).await
     }
 

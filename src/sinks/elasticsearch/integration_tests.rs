@@ -14,7 +14,7 @@ use vector_core::{
 
 use super::{config::DATA_STREAM_TIMESTAMP_KEY, *};
 use crate::{
-    aws::RegionOrEndpoint,
+    aws::{ImdsAuthentication, RegionOrEndpoint},
     config::{ProxyConfig, SinkConfig, SinkContext},
     http::HttpClient,
     sinks::{
@@ -164,7 +164,7 @@ async fn structures_events_correctly() {
 
     assert_eq!(receiver.try_recv(), Ok(BatchStatus::Delivered));
 
-    // make sure writes all all visible
+    // make sure writes are all visible
     flush(common).await.unwrap();
 
     let response = reqwest::Client::new()
@@ -252,6 +252,7 @@ async fn auto_version_aws() {
     let config = ElasticsearchConfig {
         auth: Some(ElasticsearchAuth::Aws(AwsAuthentication::Default {
             load_timeout_secs: Some(5),
+            imds: ImdsAuthentication::default(),
         })),
         endpoints: vec![aws_server()],
         aws: Some(RegionOrEndpoint::with_region(String::from("localstack"))),
@@ -273,6 +274,23 @@ async fn insert_events_over_http() {
             endpoints: vec![http_server()],
             doc_type: Some("log_lines".into()),
             compression: Compression::None,
+            ..config()
+        },
+        false,
+        BatchStatus::Delivered,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn insert_events_over_http_with_gzip_compression() {
+    trace_init();
+
+    run_insert_tests(
+        ElasticsearchConfig {
+            endpoints: vec![http_server()],
+            doc_type: Some("log_lines".into()),
+            compression: Compression::gzip_default(),
             ..config()
         },
         false,
@@ -314,6 +332,7 @@ async fn insert_events_on_aws() {
         ElasticsearchConfig {
             auth: Some(ElasticsearchAuth::Aws(AwsAuthentication::Default {
                 load_timeout_secs: Some(5),
+                imds: ImdsAuthentication::default(),
             })),
             endpoints: vec![aws_server()],
             aws: Some(RegionOrEndpoint::with_region(String::from("localstack"))),
@@ -334,6 +353,7 @@ async fn insert_events_on_aws_with_compression() {
         ElasticsearchConfig {
             auth: Some(ElasticsearchAuth::Aws(AwsAuthentication::Default {
                 load_timeout_secs: Some(5),
+                imds: ImdsAuthentication::default(),
             })),
             endpoints: vec![aws_server()],
             aws: Some(RegionOrEndpoint::with_region(String::from("localstack"))),
@@ -356,6 +376,23 @@ async fn insert_events_with_failure() {
             endpoints: vec![http_server()],
             doc_type: Some("log_lines".into()),
             compression: Compression::None,
+            ..config()
+        },
+        true,
+        BatchStatus::Rejected,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn insert_events_with_failure_and_gzip_compression() {
+    trace_init();
+
+    run_insert_tests(
+        ElasticsearchConfig {
+            endpoints: vec![http_server()],
+            doc_type: Some("log_lines".into()),
+            compression: Compression::gzip_default(),
             ..config()
         },
         true,
@@ -529,7 +566,7 @@ async fn run_insert_tests_with_config(
 
     assert_eq!(receiver.try_recv(), Ok(batch_status));
 
-    // make sure writes all all visible
+    // make sure writes are all visible
     flush(common).await.expect("Flushing writes failed");
 
     let client = create_http_client();
@@ -618,7 +655,7 @@ async fn run_insert_tests_with_multiple_endpoints(config: &ElasticsearchConfig) 
         .map(|common| common.base_url.clone())
         .collect::<Vec<_>>();
 
-    // make sure writes all all visible
+    // make sure writes are all visible
     for common in commons {
         let _ = flush(common).await;
     }
