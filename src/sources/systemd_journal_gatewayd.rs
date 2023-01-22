@@ -186,14 +186,16 @@ impl SystemdJournalGatewaydSource {
                     let record = match serde_json::from_str::<JsonValue>(line.as_str()) {
                         Ok(record) => record,
                         Err(_) => {
-                            info!("Had to fix the logs...");
-                            let line = line.replace("\\", "").replace("}}}\"", "}}");
-                            serde_json::from_str::<JsonValue>(line.as_str())
-                                .map_err(|error| emit!(SystemdJournalGatewaydJsonError { error }))?
+                            warn!("Couldn't parse log entry");
+                            continue;
                         }
                     };
 
-                    last_cursor = record.get("__CURSOR").unwrap().to_string();
+                    last_cursor = record
+                        .get("__CURSOR")
+                        .unwrap()
+                        .to_string()
+                        .replace("\"", "");
 
                     let mut log = LogEvent::default();
                     log.insert("message", line);
