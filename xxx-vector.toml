@@ -1,19 +1,19 @@
 [sources.in_logs]
 type = "systemd_journal_gatewayd"
 endpoint = "2a04:9dc0:0:108:6801:d6ff:fe59:eae1"
+data_dir = "logs"
 
 [transforms.extract_logs]
 type = "remap"
 inputs = ["in_logs"]
 source = """
 . = parse_json!(.message)
-. |= parse_json!(.MESSAGE)
 """
 
 [sinks.out_logs]
 type = "file"
 inputs = ["extract_logs"]
 compression = "none"
-path = "logs.log"
+path = "logs/logs.log"
     [sinks.out_logs.encoding]
     codec = "json"

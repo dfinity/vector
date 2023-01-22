@@ -302,7 +302,7 @@ pub enum Sources {
 
     /// Systemd-Journal-Gatewayd
     #[cfg(feature = "sources-systemd_journal_gatewayd")]
-    SystemdJournalGatewayd(#[configurable(derived)] SystemdJournalGatewaydConfig),
+    SystemdJournalGatewayd(SystemdJournalGatewaydConfig),
 }
 
 // We can't use `enum_dispatch` here because it doesn't support associated constants.

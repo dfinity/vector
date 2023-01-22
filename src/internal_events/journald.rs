@@ -1,5 +1,3 @@
-use std::net::AddrParseError;
-
 use codecs::decoding::BoxedFramingError;
 use metrics::counter;
 use vector_core::internal_event::InternalEvent;
@@ -112,48 +110,6 @@ impl InternalEvent for JournaldCheckpointFileOpenError {
         error!(
             message = "Unable to open checkpoint file.",
             path = ?self.path,
-            error = %self.error,
-            error_type = error_type::IO_FAILED,
-            stage = error_stage::RECEIVING,
-            internal_log_rate_limit = true,
-        );
-        counter!(
-            "component_errors_total", 1,
-            "stage" => error_stage::RECEIVING,
-            "error_type" => error_type::IO_FAILED,
-        );
-    }
-}
-
-#[derive(Debug)]
-pub struct SystemdJournalGatewaydParseIpError {
-    pub error: AddrParseError,
-}
-
-impl InternalEvent for SystemdJournalGatewaydParseIpError {
-    fn emit(self) {
-        error!(message = "Unable to parse systemd-journal-gatewayd endpoint",
-            error = %self.error,
-            error_type = error_type::IO_FAILED,
-            stage = error_stage::RECEIVING,
-            internal_log_rate_limit = true,
-        );
-        counter!(
-            "component_errors_total", 1,
-            "stage" => error_stage::RECEIVING,
-            "error_type" => error_type::IO_FAILED,
-        );
-    }
-}
-
-#[derive(Debug)]
-pub struct SystemdJournalGatewaydReadError {
-    pub error: std::io::Error,
-}
-
-impl InternalEvent for SystemdJournalGatewaydReadError {
-    fn emit(self) {
-        error!(message = "Unable to read from endpoint",
             error = %self.error,
             error_type = error_type::IO_FAILED,
             stage = error_stage::RECEIVING,
