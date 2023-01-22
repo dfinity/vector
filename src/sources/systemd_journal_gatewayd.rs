@@ -4,7 +4,7 @@
 use crate::internal_events::{
     JournaldCheckpointFileOpenError, StreamClosedError, TcpSocketOutgoingConnectionError,
 };
-use crate::sources::journald::{Finalizer, SharedCheckpointer, StatefulCheckpointer};
+use crate::sources::journald::{SharedCheckpointer, StatefulCheckpointer};
 use crate::SourceSender;
 use crate::{
     config::{SourceConfig, SourceContext},
@@ -21,12 +21,13 @@ use tokio::net::{TcpSocket, TcpStream};
 use vector_common::internal_event::{error_stage, error_type, InternalEvent};
 use vector_common::shutdown::ShutdownSignal;
 use vector_config::configurable_component;
-use vector_core::config::{DataType, LogNamespace, Output, SourceAcknowledgementsConfig};
+use vector_core::config::{DataType, LogNamespace, Output};
 use vector_core::event::LogEvent;
-use vector_core::serde::bool_or_struct;
 
 const CHECKPOINT_FILENAME: &str = "checkpoint.txt";
-const _CURSOR: &str = "__CURSOR";
+const CURSOR: &str = "__CURSOR";
+const BATCH_SIZE: u64 = 32;
+const BACKOFF: u64 = 10;
 
 /// Configuration for the `systemd_journal_gatewayd` source.
 #[configurable_component(source("systemd_journal_gatewayd"))]
@@ -41,9 +42,15 @@ pub struct SystemdJournalGatewaydConfig {
     /// By default, the global `data_dir` option is used. Make sure the running user has write permissions to this directory.
     pub data_dir: Option<PathBuf>,
 
-    #[configurable(derived)]
-    #[serde(default, deserialize_with = "bool_or_struct")]
-    acknowledgements: SourceAcknowledgementsConfig,
+    /// The amount of logs to fetch before persisting the cursor
+    ///
+    /// By default 32
+    pub batch_size: Option<u64>,
+
+    /// The amount of backoff between processing batches in milliseconds
+    ///
+    /// By default 10ms
+    pub backoff: Option<u64>,
 }
 
 impl_generate_config_from_default!(SystemdJournalGatewaydConfig);
@@ -55,17 +62,19 @@ impl SourceConfig for SystemdJournalGatewaydConfig {
             .globals
             .resolve_and_make_data_subdir(self.data_dir.as_ref(), cx.key.id())?;
 
+        let batch_size = self.batch_size.unwrap_or(BATCH_SIZE);
+        let backoff = self.backoff.unwrap_or(BACKOFF);
+
         let mut checkpoint_path = data_dir;
         checkpoint_path.push(CHECKPOINT_FILENAME);
-
-        let acknowledgements = cx.do_acknowledgements(self.acknowledgements);
 
         Ok(Box::pin(
             SystemdJournalGatewaydSource {
                 endpoint: self.endpoint.clone(),
                 out: cx.out,
                 checkpoint_path,
-                acknowledgements,
+                batch_size,
+                backoff,
             }
             .run_shutdown(cx.shutdown),
         ))
@@ -86,7 +95,8 @@ struct SystemdJournalGatewaydSource {
     endpoint: String,
     out: SourceSender,
     checkpoint_path: PathBuf,
-    acknowledgements: bool,
+    batch_size: u64,
+    backoff: u64,
 }
 
 impl SystemdJournalGatewaydSource {
@@ -105,13 +115,8 @@ impl SystemdJournalGatewaydSource {
             })?;
 
         let checkpointer = SharedCheckpointer::new(checkpointer);
-        let finalizer = Finalizer::new(
-            self.acknowledgements,
-            checkpointer.clone(),
-            shutdown.clone(),
-        );
 
-        self.run(shutdown, checkpointer, finalizer).await?;
+        self.run(shutdown, checkpointer).await?;
 
         Ok(())
     }
@@ -120,7 +125,6 @@ impl SystemdJournalGatewaydSource {
         mut self,
         mut shutdown: ShutdownSignal,
         checkpointer: SharedCheckpointer,
-        _finalizer: Finalizer,
     ) -> Result<(), ()> {
         let parsed_ip = self.endpoint.parse().map_err(|error| {
             emit!(SystemdJournalGatewaydParseIpError { error });
@@ -150,20 +154,16 @@ impl SystemdJournalGatewaydSource {
         loop {
             let last_cursor = self.run_stream(&mut stream).await?;
 
-            //Backoff
-            let timeout = tokio::time::sleep(Duration::from_millis(10));
-            tokio::pin!(timeout);
-            let mut should_stop = false;
-            tokio::select! {
-                _ = &mut shutdown => {
-                    should_stop = true;
-                },
-                _ = &mut timeout => {},
-            }
-
+            // Persist the last checkpoint
             checkpointer.lock().await.set(last_cursor).await;
-            if should_stop {
-                break;
+
+            // Backoff
+            let timeout = tokio::time::sleep(Duration::from_millis(self.backoff));
+            tokio::pin!(timeout);
+
+            tokio::select! {
+                _ = &mut shutdown => break,
+                _ = &mut timeout => continue,
             }
         }
 
@@ -174,7 +174,7 @@ impl SystemdJournalGatewaydSource {
         let bf = BufReader::new(stream);
         let mut lines = bf.lines();
         let mut last_cursor = String::new();
-        let mut current_batch_size = 16;
+        let mut current_batch_size = self.batch_size.clone();
         while current_batch_size != 0 {
             if let Some(line) = lines
                 .next_line()
@@ -191,11 +191,7 @@ impl SystemdJournalGatewaydSource {
                         }
                     };
 
-                    last_cursor = record
-                        .get("__CURSOR")
-                        .unwrap()
-                        .to_string()
-                        .replace("\"", "");
+                    last_cursor = record.get(CURSOR).unwrap().to_string().replace("\"", "");
 
                     let mut log = LogEvent::default();
                     log.insert("message", line);
