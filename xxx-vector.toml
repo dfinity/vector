@@ -2,7 +2,6 @@
 type = "systemd_journal_gatewayd"
 endpoint = "2a04:9dc0:0:108:6801:d6ff:fe59:eae1"
 data_dir = "logs"
-backoff = 60000
 batch_size = 10
 
 [transforms.extract_logs]

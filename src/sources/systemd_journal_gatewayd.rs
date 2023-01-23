@@ -15,7 +15,6 @@ use serde_json::Value as JsonValue;
 use std::net::SocketAddr;
 use std::net::{AddrParseError, IpAddr};
 use std::path::PathBuf;
-use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpSocket, TcpStream};
 use vector_common::internal_event::{error_stage, error_type, InternalEvent};
@@ -27,7 +26,6 @@ use vector_core::event::LogEvent;
 const CHECKPOINT_FILENAME: &str = "checkpoint.txt";
 const CURSOR: &str = "__CURSOR";
 const BATCH_SIZE: u64 = 32;
-const BACKOFF: u64 = 10;
 
 /// Configuration for the `systemd_journal_gatewayd` source.
 #[configurable_component(source("systemd_journal_gatewayd"))]
@@ -46,11 +44,6 @@ pub struct SystemdJournalGatewaydConfig {
     ///
     /// By default 32
     pub batch_size: Option<u64>,
-
-    /// The amount of backoff between processing batches in milliseconds
-    ///
-    /// By default 10ms
-    pub backoff: Option<u64>,
 }
 
 impl_generate_config_from_default!(SystemdJournalGatewaydConfig);
@@ -63,7 +56,6 @@ impl SourceConfig for SystemdJournalGatewaydConfig {
             .resolve_and_make_data_subdir(self.data_dir.as_ref(), cx.key.id())?;
 
         let batch_size = self.batch_size.unwrap_or(BATCH_SIZE);
-        let backoff = self.backoff.unwrap_or(BACKOFF);
 
         let mut checkpoint_path = data_dir;
         checkpoint_path.push(CHECKPOINT_FILENAME);
@@ -74,7 +66,6 @@ impl SourceConfig for SystemdJournalGatewaydConfig {
                 out: cx.out,
                 checkpoint_path,
                 batch_size,
-                backoff,
             }
             .run_shutdown(cx.shutdown),
         ))
@@ -96,7 +87,6 @@ struct SystemdJournalGatewaydSource {
     out: SourceSender,
     checkpoint_path: PathBuf,
     batch_size: u64,
-    backoff: u64,
 }
 
 impl SystemdJournalGatewaydSource {
@@ -152,25 +142,21 @@ impl SystemdJournalGatewaydSource {
         }
 
         loop {
-            let last_cursor = self.run_stream(&mut stream).await?;
-
-            // Persist the last checkpoint
-            checkpointer.lock().await.set(last_cursor).await;
-
-            // Backoff
-            let timeout = tokio::time::sleep(Duration::from_millis(self.backoff));
-            tokio::pin!(timeout);
-
             tokio::select! {
+                biased;
                 _ = &mut shutdown => break,
-                _ = &mut timeout => continue,
+                _ = async { } => self.run_stream(&mut stream, &checkpointer).await?
             }
         }
 
         Ok(())
     }
 
-    async fn run_stream(&mut self, stream: &mut TcpStream) -> Result<String, ()> {
+    async fn run_stream(
+        &mut self,
+        stream: &mut TcpStream,
+        checkpointer: &SharedCheckpointer,
+    ) -> Result<(), ()> {
         let bf = BufReader::new(stream);
         let mut lines = bf.lines();
         let mut last_cursor = String::new();
@@ -203,7 +189,10 @@ impl SystemdJournalGatewaydSource {
             }
         }
 
-        Ok(last_cursor)
+        // Persist the last checkpoint
+        checkpointer.lock().await.set(last_cursor).await;
+
+        Ok(())
     }
 }
 
