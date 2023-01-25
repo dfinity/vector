@@ -123,37 +123,37 @@ impl SystemdJournalGatewaydSource {
         })?;
         let socket_addr = SocketAddr::new(IpAddr::V6(parsed_ip), 19531);
 
-        let socket = TcpSocket::new_v6()
-            .map_err(|error| emit!(TcpSocketOutgoingConnectionError { error }))?;
-
-        let mut stream = socket
-            .connect(socket_addr)
-            .await
-            .map_err(|error| emit!(TcpSocketOutgoingConnectionError { error }))?;
-
-        let cursor = checkpointer.lock().await.cursor.clone();
+        let mut stream: TcpStream;
 
         loop {
-            let bytes = match cursor {
-                Some(ref cursor) => format!("GET /entries?follow HTTP/1.1\nAccept: application/json\nRange: entries={}:0:\n\r\n\r", cursor).to_owned().as_bytes().to_vec(),
-                None =>  "GET /entries?follow HTTP/1.1\nAccept: application/json\nRange: entries:-1:\n\r\n\r".as_bytes().to_vec()
-            };
+            let socket = TcpSocket::new_v6()
+                .map_err(|error| emit!(TcpSocketOutgoingConnectionError { error }))?;
 
-            match stream.write_all(&bytes[..]).await {
-                Ok(_) => break,
+            stream = match socket.connect(socket_addr).await {
+                Ok(stream) => stream,
                 Err(_) => {
-                    warn!(
-                        "Couldn't reach {}, sleeping for 5s...",
-                        socket_addr.to_string()
-                    );
+                    warn!("Couldn't reach {}, Backing off...", socket_addr);
 
                     tokio::select! {
                         _ = &mut shutdown => return Ok(()),
                         _ = sleep(Duration::from_secs(5)) => continue
                     }
                 }
-            }
+            };
+            break;
         }
+
+        let cursor = checkpointer.lock().await.cursor.clone();
+
+        let bytes = match cursor {
+            Some(ref cursor) => format!("GET /entries?follow HTTP/1.1\nAccept: application/json\nRange: entries={}:0:\n\r\n\r", cursor).to_owned().as_bytes().to_vec(),
+            None =>  "GET /entries?follow HTTP/1.1\nAccept: application/json\nRange: entries:-1:\n\r\n\r".as_bytes().to_vec()
+        };
+
+        stream
+            .write_all(&bytes[..])
+            .await
+            .map_err(|error| emit!(TcpSocketOutgoingConnectionError { error }))?;
 
         loop {
             tokio::select! {
