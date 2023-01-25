@@ -15,8 +15,10 @@ use serde_json::Value as JsonValue;
 use std::net::SocketAddr;
 use std::net::{AddrParseError, IpAddr};
 use std::path::PathBuf;
+use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpSocket, TcpStream};
+use tokio::time::sleep;
 use vector_common::internal_event::{error_stage, error_type, InternalEvent};
 use vector_common::shutdown::ShutdownSignal;
 use vector_config::configurable_component;
@@ -131,14 +133,26 @@ impl SystemdJournalGatewaydSource {
 
         let cursor = checkpointer.lock().await.cursor.clone();
 
-        if let Some(cursor) = cursor {
-            stream.write_all(format!("GET /entries?follow HTTP/1.1\nAccept: application/json\nRange: entries={}:0:\n\r\n\r", cursor).as_bytes()).await.map_err(|error| {
-                emit!(TcpSocketOutgoingConnectionError { error })
-            })?;
-        } else {
-            stream.write_all(b"GET /entries?follow HTTP/1.1\nAccept: application/json\nRange: entries:-1:\n\r\n\r").await.map_err(|error| {
-                emit!(TcpSocketOutgoingConnectionError { error })
-            })?;
+        loop {
+            let bytes = match cursor {
+                Some(ref cursor) => format!("GET /entries?follow HTTP/1.1\nAccept: application/json\nRange: entries={}:0:\n\r\n\r", cursor).to_owned().as_bytes().to_vec(),
+                None =>  "GET /entries?follow HTTP/1.1\nAccept: application/json\nRange: entries:-1:\n\r\n\r".as_bytes().to_vec()
+            };
+
+            match stream.write_all(&bytes[..]).await {
+                Ok(_) => break,
+                Err(_) => {
+                    warn!(
+                        "Couldn't reach {}, sleeping for 5s...",
+                        socket_addr.to_string()
+                    );
+
+                    tokio::select! {
+                        _ = &mut shutdown => return Ok(()),
+                        _ = sleep(Duration::from_secs(5)) => continue
+                    }
+                }
+            }
         }
 
         loop {
