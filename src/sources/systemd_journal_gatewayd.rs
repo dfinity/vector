@@ -1,24 +1,21 @@
 //! Generalized HTTP client source.
 //! Calls an endpoint at an interval, decoding the HTTP responses into events.
 
-use crate::internal_events::{
-    JournaldCheckpointFileOpenError, StreamClosedError, TcpSocketOutgoingConnectionError,
-};
+use crate::internal_events::{JournaldCheckpointFileOpenError, StreamClosedError};
 use crate::sources::journald::{SharedCheckpointer, StatefulCheckpointer};
 use crate::SourceSender;
 use crate::{
     config::{SourceConfig, SourceContext},
     sources,
 };
+use hyper::client::HttpConnector;
+use hyper::header::{ACCEPT, RANGE};
+use hyper::Client;
 use metrics::counter;
 use serde_json::Value as JsonValue;
 use std::net::SocketAddr;
 use std::net::{AddrParseError, IpAddr};
 use std::path::PathBuf;
-use std::time::Duration;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{TcpSocket, TcpStream};
-use tokio::time::sleep;
 use vector_common::internal_event::{error_stage, error_type, InternalEvent};
 use vector_common::shutdown::ShutdownSignal;
 use vector_config::configurable_component;
@@ -68,6 +65,7 @@ impl SourceConfig for SystemdJournalGatewaydConfig {
                 out: cx.out,
                 checkpoint_path,
                 batch_size,
+                client: Client::builder().pool_max_idle_per_host(0).build_http(),
             }
             .run_shutdown(cx.shutdown),
         ))
@@ -89,6 +87,7 @@ struct SystemdJournalGatewaydSource {
     out: SourceSender,
     checkpoint_path: PathBuf,
     batch_size: u64,
+    client: Client<HttpConnector>,
 }
 
 impl SystemdJournalGatewaydSource {
@@ -123,89 +122,93 @@ impl SystemdJournalGatewaydSource {
         })?;
         let socket_addr = SocketAddr::new(IpAddr::V6(parsed_ip), 19531);
 
-        let mut stream: TcpStream;
-
-        loop {
-            let socket = TcpSocket::new_v6()
-                .map_err(|error| emit!(TcpSocketOutgoingConnectionError { error }))?;
-
-            stream = match socket.connect(socket_addr).await {
-                Ok(stream) => stream,
-                Err(_) => {
-                    warn!("Couldn't reach {}, Backing off...", socket_addr);
-
-                    tokio::select! {
-                        _ = &mut shutdown => return Ok(()),
-                        _ = sleep(Duration::from_secs(5)) => continue
-                    }
-                }
-            };
-            break;
-        }
-
         let cursor = checkpointer.lock().await.cursor.clone();
 
-        let bytes = match cursor {
-            Some(ref cursor) => format!("GET /entries?follow HTTP/1.1\nAccept: application/json\nRange: entries={}:0:\n\r\n\r", cursor).to_owned().as_bytes().to_vec(),
-            None =>  "GET /entries?follow HTTP/1.1\nAccept: application/json\nRange: entries:-1:\n\r\n\r".as_bytes().to_vec()
-        };
-
-        stream
-            .write_all(&bytes[..])
-            .await
-            .map_err(|error| emit!(TcpSocketOutgoingConnectionError { error }))?;
+        let url = &format!("http://{}/entries", socket_addr);
+        let mut last_cursor = String::new();
 
         loop {
-            tokio::select! {
+            let req = hyper::Request::builder()
+                .method(hyper::Method::GET)
+                .uri(url)
+                .header(ACCEPT, "application/json".to_string())
+                .header(
+                    RANGE,
+                    format!(
+                        "entries={}:{}:{}",
+                        match cursor.clone() {
+                            Some(val) => val,
+                            None => "".to_string(),
+                        },
+                        match cursor {
+                            Some(_) => 1,
+                            None => -1,
+                        },
+                        self.batch_size
+                    ),
+                )
+                .body(hyper::Body::empty())
+                .unwrap();
+
+            let body = tokio::select! {
                 biased;
                 _ = &mut shutdown => break,
-                _ = async { } => self.run_stream(&mut stream, &checkpointer).await?
+                result = self.client.request(req) => result.map_err(|error| emit!(SystemdJournalGatewaydReadError { error }))?
+                .into_body(),
+            };
+
+            let body_bytes = tokio::select! {
+                biased;
+                _ = &mut shutdown => break,
+                result = hyper::body::to_bytes(body) => result.map_err(|error| emit!(SystemdJournalGatewaydReadError { error }))?
+            };
+
+            let log_entries = String::from_utf8(body_bytes.to_vec())
+                .map_err(|error| emit!(SystemdJournalGatewaydJsonError { error }))?
+                .split('\n')
+                .into_iter()
+                .map(|f| f.to_string())
+                .collect::<Vec<String>>();
+
+            for entry in log_entries {
+                let record = match serde_json::from_str::<JsonValue>(entry.as_str()) {
+                    Ok(record) => record,
+                    Err(_) => {
+                        warn!("Couldn't parse log entry");
+                        continue;
+                    }
+                };
+
+                last_cursor = record.get(CURSOR).unwrap().to_string().replace("\"", "");
+                let mut log = LogEvent::default();
+                log.insert("message", entry);
+                self.out
+                    .send_event(log)
+                    .await
+                    .map_err(|error| emit!(StreamClosedError { error, count: 1 }))?;
             }
         }
 
-        Ok(())
-    }
+        // let url = match cursor {
+        //     Some(ref cursor) => format!("/entriesRange: entries={}:0:\n\r\n\r", cursor),
+        //     None => {
+        //         "GET /entries?follow HTTP/1.1\nAccept: application/json\nRange: entries:-1:\n\r\n\r"
+        //             .as_bytes()
+        //             .to_vec()
+        //     }
+        // };
 
-    async fn run_stream(
-        &mut self,
-        stream: &mut TcpStream,
-        checkpointer: &SharedCheckpointer,
-    ) -> Result<(), ()> {
-        let bf = BufReader::new(stream);
-        let mut lines = bf.lines();
-        let mut last_cursor = String::new();
-        let mut current_batch_size = self.batch_size.clone();
-        while current_batch_size != 0 {
-            if let Some(line) = lines
-                .next_line()
-                .await
-                .map_err(|error| emit!(SystemdJournalGatewaydReadError { error }))?
-            {
-                if let Some('{') = line.chars().next() {
-                    current_batch_size = current_batch_size - 1;
-                    let record = match serde_json::from_str::<JsonValue>(line.as_str()) {
-                        Ok(record) => record,
-                        Err(_) => {
-                            warn!("Couldn't parse log entry");
-                            continue;
-                        }
-                    };
-
-                    last_cursor = record.get(CURSOR).unwrap().to_string().replace("\"", "");
-
-                    let mut log = LogEvent::default();
-                    log.insert("message", line);
-                    self.out
-                        .send_event(log)
-                        .await
-                        .map_err(|error| emit!(StreamClosedError { error, count: 1 }))?;
-                }
-            }
-        }
-
+        // loop {
+        //     tokio::select! {
+        //         biased;
+        //         _ = &mut shutdown => break,
+        //         _ = async { } => self.run_stream(&mut stream, &checkpointer).await?
+        //     }
+        // }
         // Persist the last checkpoint
-        checkpointer.lock().await.set(last_cursor).await;
+        // checkpointer.lock().await.set(last_cursor).await;
 
+        checkpointer.lock().await.set(last_cursor).await;
         Ok(())
     }
 }
@@ -233,7 +236,7 @@ impl InternalEvent for SystemdJournalGatewaydParseIpError {
 
 #[derive(Debug)]
 pub struct SystemdJournalGatewaydReadError {
-    pub error: std::io::Error,
+    pub error: hyper::Error,
 }
 
 impl InternalEvent for SystemdJournalGatewaydReadError {
@@ -254,7 +257,7 @@ impl InternalEvent for SystemdJournalGatewaydReadError {
 
 #[derive(Debug)]
 pub struct SystemdJournalGatewaydJsonError {
-    pub error: serde_json::Error,
+    pub error: std::string::FromUtf8Error,
 }
 
 impl InternalEvent for SystemdJournalGatewaydJsonError {
