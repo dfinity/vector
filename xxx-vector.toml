@@ -18,3 +18,7 @@ compression = "none"
 path = "logs/logs.log"
     [sinks.out_logs.encoding]
     codec = "json"
+
+# [sinks.my_sink_id]
+# type = "blackhole"
+# inputs = [ "extract_logs" ]

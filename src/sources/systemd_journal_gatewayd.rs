@@ -8,6 +8,7 @@ use crate::{
     config::{SourceConfig, SourceContext},
     sources,
 };
+use chrono::{DateTime, NaiveDateTime, Utc};
 use hyper::client::HttpConnector;
 use hyper::header::{ACCEPT, RANGE};
 use hyper::Client;
@@ -16,15 +17,17 @@ use serde_json::Value as JsonValue;
 use std::net::SocketAddr;
 use std::net::{AddrParseError, IpAddr};
 use std::path::PathBuf;
+use std::time::Duration;
 use vector_common::internal_event::{error_stage, error_type, InternalEvent};
 use vector_common::shutdown::ShutdownSignal;
 use vector_config::configurable_component;
-use vector_core::config::{DataType, LogNamespace, Output};
+use vector_core::config::{log_schema, DataType, LogNamespace, Output};
 use vector_core::event::LogEvent;
 
 const CHECKPOINT_FILENAME: &str = "checkpoint.txt";
 const CURSOR: &str = "__CURSOR";
 const BATCH_SIZE: u64 = 32;
+const REALTIMESTAMP: &str = "__REALTIME_TIMESTAMP";
 
 /// Configuration for the `systemd_journal_gatewayd` source.
 #[configurable_component(source("systemd_journal_gatewayd"))]
@@ -125,7 +128,11 @@ impl SystemdJournalGatewaydSource {
         let cursor = checkpointer.lock().await.cursor.clone();
 
         let url = &format!("http://{}/entries", socket_addr);
-        let mut last_cursor = String::new();
+        let mut last_cursor = match cursor {
+            Some(val) => val,
+            None => "".to_string(),
+        };
+        let mut batch = BATCH_SIZE;
 
         loop {
             let req = hyper::Request::builder()
@@ -136,13 +143,13 @@ impl SystemdJournalGatewaydSource {
                     RANGE,
                     format!(
                         "entries={}:{}:{}",
-                        match cursor.clone() {
-                            Some(val) => val,
-                            None => "".to_string(),
+                        match last_cursor.is_empty() {
+                            false => last_cursor.clone(),
+                            true => "".to_string(),
                         },
-                        match cursor {
-                            Some(_) => 1,
-                            None => -1,
+                        match last_cursor.is_empty() {
+                            false => 1,
+                            true => -1,
                         },
                         self.batch_size
                     ),
@@ -153,8 +160,17 @@ impl SystemdJournalGatewaydSource {
             let body = tokio::select! {
                 biased;
                 _ = &mut shutdown => break,
-                result = self.client.request(req) => result.map_err(|error| emit!(SystemdJournalGatewaydReadError { error }))?
-                .into_body(),
+                result = self.client.request(req) => match result {
+                    Ok(resp) => resp.into_body(),
+                    Err(_) => {
+                        warn!("Couldn't reach node... Backing off");
+                        tokio::select! {
+                            biased;
+                            _ = &mut shutdown => break,
+                            _ = tokio::time::sleep(Duration::from_secs(5)) => continue,
+                        }
+                    }
+                }
             };
 
             let body_bytes = tokio::select! {
@@ -174,39 +190,53 @@ impl SystemdJournalGatewaydSource {
                 let record = match serde_json::from_str::<JsonValue>(entry.as_str()) {
                     Ok(record) => record,
                     Err(_) => {
-                        warn!("Couldn't parse log entry");
+                        if !entry.is_empty() {
+                            warn!("Couldn't parse log entry. Line was: \n{}", entry);
+                        }
                         continue;
                     }
                 };
+                let current_cursor = record.get(CURSOR).unwrap().to_string().replace('\"', "");
 
-                last_cursor = record.get(CURSOR).unwrap().to_string().replace("\"", "");
+                // Escaping duplicated logs
+                if current_cursor == last_cursor {
+                    break;
+                }
+                last_cursor = current_cursor;
+
+                let timestamp = record
+                    .get(REALTIMESTAMP)
+                    .unwrap()
+                    .to_string()
+                    .replace('\"', "");
+
+                let secs = timestamp[..timestamp.len() - 6].parse();
+                let microsecs = timestamp[timestamp.len() - 6..].parse::<u32>();
+                let parsed = match (secs, microsecs) {
+                    (Ok(s), Ok(us)) => NaiveDateTime::from_timestamp_opt(s, us * 1000),
+                    _ => None,
+                };
+
+                let naive = match parsed {
+                    Some(date) => date,
+                    None => Utc::now().naive_utc(),
+                };
+                let datetime: DateTime<Utc> = DateTime::from_utc(naive, Utc);
+
                 let mut log = LogEvent::default();
+                log.insert(log_schema().timestamp_key(), datetime);
                 log.insert("message", entry);
                 self.out
                     .send_event(log)
                     .await
                     .map_err(|error| emit!(StreamClosedError { error, count: 1 }))?;
             }
+            batch -= 1;
+            if batch == 0 {
+                checkpointer.lock().await.set(last_cursor.clone()).await;
+                batch = BATCH_SIZE;
+            }
         }
-
-        // let url = match cursor {
-        //     Some(ref cursor) => format!("/entriesRange: entries={}:0:\n\r\n\r", cursor),
-        //     None => {
-        //         "GET /entries?follow HTTP/1.1\nAccept: application/json\nRange: entries:-1:\n\r\n\r"
-        //             .as_bytes()
-        //             .to_vec()
-        //     }
-        // };
-
-        // loop {
-        //     tokio::select! {
-        //         biased;
-        //         _ = &mut shutdown => break,
-        //         _ = async { } => self.run_stream(&mut stream, &checkpointer).await?
-        //     }
-        // }
-        // Persist the last checkpoint
-        // checkpointer.lock().await.set(last_cursor).await;
 
         checkpointer.lock().await.set(last_cursor).await;
         Ok(())
