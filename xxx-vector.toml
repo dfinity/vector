@@ -1,0 +1,24 @@
+[sources.in_logs]
+type = "systemd_journal_gatewayd"
+endpoint = "2a04:9dc0:0:108:6801:d6ff:fe59:eae1"
+data_dir = "logs"
+batch_size = 10
+
+# [transforms.extract_logs]
+# type = "remap"
+# inputs = ["in_logs"]
+# source = """
+# . = parse_json!(.message)
+# """
+
+[sinks.out_logs]
+type = "file"
+inputs = ["in_logs"]
+compression = "none"
+path = "logs/logs.log"
+    [sinks.out_logs.encoding]
+    codec = "json"
+
+# [sinks.my_sink_id]
+# type = "blackhole"
+# inputs = [ "extract_logs" ]
