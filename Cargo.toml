@@ -487,7 +487,8 @@ sources-logs = [
   "sources-stdin",
   "sources-syslog",
   "sources-vector",
-  "sources-systemd_journal_gatewayd"
+  "sources-systemd_journal_gatewayd",
+  "sources-sns_canister"
 ]
 sources-metrics = [
   "sources-apache_metrics",
@@ -553,6 +554,7 @@ sources-utils-net-tcp = ["listenfd"]
 sources-utils-net-udp = ["listenfd"]
 sources-utils-net-unix = []
 sources-systemd_journal_gatewayd = []
+sources-sns_canister = []
 
 sources-vector = ["dep:tonic", "protobuf-build"]
 

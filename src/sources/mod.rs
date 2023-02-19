@@ -70,6 +70,8 @@ pub mod postgresql_metrics;
 pub mod prometheus;
 #[cfg(feature = "sources-redis")]
 pub mod redis;
+#[cfg(feature = "sources-sns_canister")]
+pub mod sns_canister;
 #[cfg(feature = "sources-socket")]
 pub mod socket;
 #[cfg(feature = "sources-splunk_hec")]
@@ -80,10 +82,9 @@ pub mod statsd;
 pub mod syslog;
 #[cfg(feature = "sources-systemd_journal_gatewayd")]
 pub mod systemd_journal_gatewayd;
+pub mod util;
 #[cfg(feature = "sources-vector")]
 pub mod vector;
-
-pub mod util;
 
 use vector_config::{configurable_component, NamedComponent};
 use vector_core::config::{LogNamespace, Output};
@@ -94,7 +95,9 @@ use crate::config::{
     Resource, SourceConfig, SourceContext,
 };
 
-use self::systemd_journal_gatewayd::SystemdJournalGatewaydConfig;
+use self::{
+    sns_canister::SnsCanisterConfig, systemd_journal_gatewayd::SystemdJournalGatewaydConfig,
+};
 
 /// Common build errors
 #[derive(Debug, Snafu)]
@@ -303,6 +306,10 @@ pub enum Sources {
     /// Systemd-Journal-Gatewayd
     #[cfg(feature = "sources-systemd_journal_gatewayd")]
     SystemdJournalGatewayd(SystemdJournalGatewaydConfig),
+
+    /// Sns-canister
+    #[cfg(feature = "sources-sns_canister")]
+    SnsCanister(SnsCanisterConfig),
 }
 
 // We can't use `enum_dispatch` here because it doesn't support associated constants.
@@ -407,6 +414,8 @@ impl NamedComponent for Sources {
             Self::Vector(config) => config.get_component_name(),
             #[cfg(feature = "sources-systemd_journal_gatewayd")]
             Self::SystemdJournalGatewayd(config) => config.get_component_name(),
+            #[cfg(feature = "sources-sns_canister")]
+            Self::SnsCanister(config) => config.get_component_name(),
         }
     }
 }
