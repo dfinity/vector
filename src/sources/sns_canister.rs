@@ -158,6 +158,11 @@ impl SnsCanisterSource {
                 }
             };
 
+            if sns_logs.len() == 0 {
+                info!("Empty batch, skipping operations...");
+                continue;
+            }
+
             for log in &sns_logs {
                 self.out
                     .send_event(log.into_event())
