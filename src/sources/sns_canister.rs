@@ -1,6 +1,7 @@
 //! Generalized HTTP client source.
 //! Calls an endpoint at an interval, decoding the HTTP responses into events.
 
+use crate::http::HttpClient;
 use crate::internal_events::{JournaldCheckpointFileOpenError, StreamClosedError};
 use crate::sources::journald::{SharedCheckpointer, StatefulCheckpointer};
 use crate::SourceSender;
@@ -8,9 +9,7 @@ use crate::{
     config::{SourceConfig, SourceContext},
     sources,
 };
-use hyper::client::HttpConnector;
 use hyper::header::ACCEPT;
-use hyper::Client;
 use metrics::counter;
 use std::net::AddrParseError;
 use std::path::PathBuf;
@@ -18,6 +17,7 @@ use std::time::Duration;
 use vector_common::internal_event::{error_stage, error_type, InternalEvent};
 use vector_common::shutdown::ShutdownSignal;
 use vector_config::configurable_component;
+use vector_core::config::proxy::ProxyConfig;
 use vector_core::config::{log_schema, DataType, LogNamespace, Output};
 use vector_core::event::LogEvent;
 
@@ -49,13 +49,13 @@ impl SourceConfig for SnsCanisterConfig {
 
         let mut checkpoint_path = data_dir;
         checkpoint_path.push(CHECKPOINT_FILENAME);
-
+        let proxy = ProxyConfig::from_env();
         Ok(Box::pin(
             SnsCanisterSource {
                 endpoint: self.endpoint.clone(),
                 out: cx.out,
                 checkpoint_path,
-                client: Client::builder().pool_max_idle_per_host(0).build_http(),
+                client: HttpClient::new(None, &proxy)?,
             }
             .run_shutdown(cx.shutdown),
         ))
@@ -76,7 +76,7 @@ struct SnsCanisterSource {
     endpoint: String,
     out: SourceSender,
     checkpoint_path: PathBuf,
-    client: Client<HttpConnector>,
+    client: HttpClient<hyper::Body>,
 }
 
 impl SnsCanisterSource {
@@ -115,21 +115,28 @@ impl SnsCanisterSource {
         let mut batch = BATCH_SIZE;
 
         loop {
-            let url = &format!("http://{}/logs?time={}", self.endpoint, last_cursor);
+            let url = match last_cursor == "".to_string() {
+                true => format!("{}/logs", self.endpoint),
+                false => format!("{}/logs?time={}", self.endpoint, last_cursor),
+            };
             let req = hyper::Request::builder()
                 .method(hyper::Method::GET)
-                .uri(url)
+                .uri(&url)
                 .header(ACCEPT, "application/json".to_string())
                 .body(hyper::Body::empty())
                 .unwrap();
 
+            info!("Sending request to: {}", url);
+
             let body = tokio::select! {
                 biased;
                 _ = &mut shutdown => break,
-                result = self.client.request(req) => match result {
-                    Ok(resp) => resp.into_body(),
-                    Err(_) => {
-                        warn!("Couldn't reach canister... Backing off");
+                result = self.client.send(req) => match result {
+                    Ok(resp) => {
+                        resp.into_body()
+                    },
+                    Err(e) => {
+                        warn!("Couldn't reach canister... Backing off. Error was: {}", e);
                         tokio::select! {
                             biased;
                             _ = &mut shutdown => break,
@@ -148,22 +155,23 @@ impl SnsCanisterSource {
             let body_string = String::from_utf8(body_bytes.to_vec())
                 .map_err(|error| emit!(SnsCanisterJsonError { error }))?;
 
-            let sns_logs = match serde_json::from_str::<Vec<SnsLogRecord>>(body_string.as_str()) {
-                Ok(sns_logs) => sns_logs,
-                Err(_) => {
-                    if !body_string.is_empty() {
-                        warn!("Couldn't parse log entry. Payload: \n{}", body_string);
+            let sns_logs =
+                match serde_json::from_str::<SnsLogRecordsAggregated>(body_string.as_str()) {
+                    Ok(sns_logs) => sns_logs,
+                    Err(_) => {
+                        if !body_string.is_empty() {
+                            warn!("Couldn't parse log entry. Payload: \n{}", body_string);
+                        }
+                        continue;
                     }
-                    continue;
-                }
-            };
+                };
 
-            if sns_logs.len() == 0 {
+            if sns_logs.entries.len() == 0 {
                 info!("Empty batch, skipping operations...");
                 continue;
             }
 
-            for log in &sns_logs {
+            for log in &sns_logs.entries {
                 self.out
                     .send_event(log.into_event())
                     .await
@@ -187,8 +195,19 @@ impl SnsCanisterSource {
 }
 
 #[derive(serde::Deserialize, Clone)]
+struct SnsLogRecordsAggregated {
+    entries: Vec<SnsLogRecord>,
+}
+
+impl SnsLogRecordsAggregated {
+    fn last(&self) -> Option<SnsLogRecord> {
+        self.entries.last().cloned()
+    }
+}
+
+#[derive(serde::Deserialize, Clone)]
 struct SnsLogRecord {
-    timestamp: String,
+    timestamp: u64,
     severity: String,
     file: String,
     line: u64,
