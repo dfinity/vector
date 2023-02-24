@@ -129,8 +129,6 @@ impl SnsCanisterSource {
                 .body(hyper::Body::empty())
                 .unwrap();
 
-            info!("Sending request to: {}", url);
-
             let body = tokio::select! {
                 biased;
                 _ = &mut shutdown => break,
@@ -161,16 +159,10 @@ impl SnsCanisterSource {
             let sns_logs =
                 match serde_json::from_str::<SnsLogRecordsAggregated>(body_string.as_str()) {
                     Ok(sns_logs) => sns_logs,
-                    Err(_) => {
-                        if !body_string.is_empty() {
-                            warn!("Couldn't parse log entry. Payload: \n{}", body_string);
-                        }
-                        continue;
-                    }
+                    Err(_) => continue,
                 };
 
             if sns_logs.entries.len() == 0 {
-                info!("Empty batch, skipping operations...");
                 continue;
             }
 
