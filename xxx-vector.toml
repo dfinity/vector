@@ -1,26 +1,6 @@
 [sources.in_logs_5j7vn]
 type = "sns_canister"
-endpoint = "https://5j7vn-7yaaa-aaaaa-qaaca-cai.raw.medium09.testnet.dfinity.network"
-data_dir = "logs"
-
-[sources.in_logs_5s2ji]
-type = "sns_canister"
-endpoint = "https://5s2ji-faaaa-aaaaa-qaaaq-cai.raw.medium09.testnet.dfinity.network"
-data_dir = "logs"
-
-[sources.in_logs_54yea]
-type = "sns_canister"
-endpoint = "https://54yea-6qaaa-aaaaa-qaabq-cai.raw.medium09.testnet.dfinity.network"
-data_dir = "logs"
-
-[sources.in_logs_5o6tz]
-type = "sns_canister"
-endpoint = "https://5o6tz-saaaa-aaaaa-qaacq-cai.raw.medium09.testnet.dfinity.network"
-data_dir = "logs"
-
-[sources.in_logs_53zcu]
-type = "sns_canister"
-endpoint = "https://53zcu-tiaaa-aaaaa-qaaba-cai.raw.medium09.testnet.dfinity.network"
+endpoint = "https://3e3x2-xyaaa-aaaaq-aaalq-cai.raw.ic0.app"
 data_dir = "logs"
 
 [sinks.out_logs]

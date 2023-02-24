@@ -20,6 +20,7 @@ use vector_config::configurable_component;
 use vector_core::config::proxy::ProxyConfig;
 use vector_core::config::{log_schema, DataType, LogNamespace, Output};
 use vector_core::event::LogEvent;
+use vector_core::tls::{TlsConfig, TlsSettings};
 
 const CHECKPOINT_FILENAME: &str = "checkpoint.txt";
 const BATCH_SIZE: u64 = 32;
@@ -50,12 +51,14 @@ impl SourceConfig for SnsCanisterConfig {
         let mut checkpoint_path = data_dir;
         checkpoint_path.push(CHECKPOINT_FILENAME);
         let proxy = ProxyConfig::from_env();
+        let default = TlsConfig::default();
+        let tls = TlsSettings::from_options(&Some(default))?;
         Ok(Box::pin(
             SnsCanisterSource {
                 endpoint: self.endpoint.clone(),
                 out: cx.out,
                 checkpoint_path,
-                client: HttpClient::new(None, &proxy)?,
+                client: HttpClient::new(tls, &proxy)?,
             }
             .run_shutdown(cx.shutdown),
         ))
