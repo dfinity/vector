@@ -24,6 +24,7 @@ use vector_core::tls::{TlsConfig, TlsSettings};
 
 const CHECKPOINT_FILENAME: &str = "checkpoint.txt";
 const BATCH_SIZE: u64 = 32;
+const SLEEP_DURATION: u64 = 1;
 
 /// Configuration for the `sns_canister` source.
 #[configurable_component(source("sns_canister"))]
@@ -37,6 +38,11 @@ pub struct SnsCanisterConfig {
     ///
     /// By default, the global `data_dir` option is used. Make sure the running user has write permissions to this directory.
     pub data_dir: Option<PathBuf>,
+
+    /// The sleep duration in seconds between requests
+    ///
+    /// By default, 1 second is used.
+    pub sleep_duration: Option<u64>,
 }
 
 impl_generate_config_from_default!(SnsCanisterConfig);
@@ -47,6 +53,8 @@ impl SourceConfig for SnsCanisterConfig {
         let data_dir = cx
             .globals
             .resolve_and_make_data_subdir(self.data_dir.as_ref(), cx.key.id())?;
+
+        let sleep = self.sleep_duration.unwrap_or(SLEEP_DURATION);
 
         let mut checkpoint_path = data_dir;
         checkpoint_path.push(CHECKPOINT_FILENAME);
@@ -59,6 +67,7 @@ impl SourceConfig for SnsCanisterConfig {
                 out: cx.out,
                 checkpoint_path,
                 client: HttpClient::new(tls, &proxy)?,
+                sleep,
             }
             .run_shutdown(cx.shutdown),
         ))
@@ -80,6 +89,7 @@ struct SnsCanisterSource {
     out: SourceSender,
     checkpoint_path: PathBuf,
     client: HttpClient<hyper::Body>,
+    sleep: u64,
 }
 
 impl SnsCanisterSource {
@@ -118,6 +128,11 @@ impl SnsCanisterSource {
         let mut batch = BATCH_SIZE;
 
         loop {
+            tokio::select! {
+                biased;
+                _ = &mut shutdown => break,
+                _ = tokio::time::sleep(Duration::from_secs(self.sleep)) => {},
+            }
             let url = match last_cursor == "".to_string() {
                 true => format!("{}/logs", self.endpoint),
                 false => format!("{}/logs?time={}", self.endpoint, last_cursor),
