@@ -95,6 +95,7 @@ struct SystemdJournalGatewaydSource {
 
 impl SystemdJournalGatewaydSource {
     async fn run_shutdown(self, shutdown: ShutdownSignal) -> Result<(), ()> {
+        counter!("sources_started", 1);
         let checkpointer = StatefulCheckpointer::new(self.checkpoint_path.clone())
             .await
             .map_err(|error| {
