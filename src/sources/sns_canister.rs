@@ -10,6 +10,7 @@ use crate::{
     sources,
 };
 use hyper::header::ACCEPT;
+use hyper::http::StatusCode;
 use metrics::counter;
 use std::net::AddrParseError;
 use std::path::PathBuf;
@@ -149,7 +150,12 @@ impl SnsCanisterSource {
                 _ = &mut shutdown => break,
                 result = self.client.send(req) => match result {
                     Ok(resp) => {
-                        resp.into_body()
+                        match resp.status() {
+                            StatusCode::OK => {
+                                resp.into_body()
+                            }
+                            _ => continue,
+                        }
                     },
                     Err(e) => {
                         warn!("Couldn't reach canister... Backing off. Error was: {}", e);
@@ -174,7 +180,14 @@ impl SnsCanisterSource {
             let sns_logs =
                 match serde_json::from_str::<SnsLogRecordsAggregated>(body_string.as_str()) {
                     Ok(sns_logs) => sns_logs,
-                    Err(_) => continue,
+                    Err(error) => {
+                        emit!(SnsSerdeJsonError {
+                            error,
+                            canister_id: self.endpoint.to_string()
+                        });
+                        warn!("Couldn't parse body:\n{}", body_string.as_str());
+                        continue;
+                    }
                 };
 
             if sns_logs.entries.len() == 0 {
@@ -253,7 +266,7 @@ impl InternalEvent for SnsCanisterParseUrlError {
         counter!(
             "component_errors_total", 1,
             "stage" => error_stage::RECEIVING,
-            "error_type" => error_type::IO_FAILED,
+            "error_type" => error_type::IO_FAILED
         );
     }
 }
@@ -296,6 +309,28 @@ impl InternalEvent for SnsCanisterJsonError {
             "component_errors_total", 1,
             "stage" => error_stage::RECEIVING,
             "error_type" => error_type::IO_FAILED,
+        );
+    }
+}
+
+pub struct SnsSerdeJsonError {
+    pub error: serde_json::Error,
+    pub canister_id: String,
+}
+
+impl InternalEvent for SnsSerdeJsonError {
+    fn emit(self) {
+        error!(message = "Serde failed for sns log entries",
+            error = %self.error,
+            error_type = error_type::IO_FAILED,
+            stage = error_stage::RECEIVING,
+            internal_log_rate_limit = true,
+        );
+        counter!(
+            "component_errors_total", 1,
+            "stage" => error_stage::RECEIVING,
+            "error_type" => error_type::IO_FAILED,
+            "canister_id" => self.canister_id
         );
     }
 }

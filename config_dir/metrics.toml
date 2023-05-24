@@ -1,8 +1,0 @@
-[sources.internal]
-type = "internal_metrics"
-scrape_interval_secs = 30
-
-[sinks.prom_exp]
-type = "prometheus_exporter"
-address = "0.0.0.0:9095"
-inputs = [ "internal" ]
