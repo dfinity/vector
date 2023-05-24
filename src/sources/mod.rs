@@ -70,6 +70,8 @@ pub mod postgresql_metrics;
 pub mod prometheus;
 #[cfg(feature = "sources-redis")]
 pub mod redis;
+#[cfg(feature = "sources-sns_canister")]
+pub mod sns_canister;
 #[cfg(feature = "sources-socket")]
 pub mod socket;
 #[cfg(feature = "sources-splunk_hec")]
@@ -78,6 +80,8 @@ pub mod splunk_hec;
 pub mod statsd;
 #[cfg(feature = "sources-syslog")]
 pub mod syslog;
+#[cfg(feature = "sources-systemd_journal_gatewayd")]
+pub mod systemd_journal_gatewayd;
 #[cfg(feature = "sources-vector")]
 pub mod vector;
 

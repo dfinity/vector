@@ -1,6 +1,7 @@
 //! Generalized HTTP client source.
 //! Calls an endpoint at an interval, decoding the HTTP responses into events.
 
+use crate::config::schema::Definition;
 use crate::http::HttpClient;
 use crate::internal_events::{JournaldCheckpointFileOpenError, StreamClosedError};
 use crate::sources::journald::{SharedCheckpointer, StatefulCheckpointer};
@@ -19,7 +20,7 @@ use vector_common::internal_event::{error_stage, error_type, InternalEvent};
 use vector_common::shutdown::ShutdownSignal;
 use vector_config::configurable_component;
 use vector_core::config::proxy::ProxyConfig;
-use vector_core::config::{log_schema, DataType, LogNamespace, Output};
+use vector_core::config::{log_schema, DataType, LogNamespace, SourceOutput};
 use vector_core::event::LogEvent;
 use vector_core::tls::{TlsConfig, TlsSettings};
 
@@ -28,7 +29,7 @@ const BATCH_SIZE: u64 = 32;
 const SLEEP_DURATION: u64 = 1;
 
 /// Configuration for the `sns_canister` source.
-#[configurable_component(source("sns_canister"))]
+#[configurable_component(source("sns_canister", "Collect logs from sns canisters of Dfinity"))]
 #[derive(Clone, Debug, Default)]
 pub struct SnsCanisterConfig {
     /// Canister url to collect logs from. Only base url should be specified.
@@ -49,6 +50,7 @@ pub struct SnsCanisterConfig {
 impl_generate_config_from_default!(SnsCanisterConfig);
 
 #[async_trait::async_trait]
+#[typetag::serde(name = "sns_canister")]
 impl SourceConfig for SnsCanisterConfig {
     async fn build(&self, cx: SourceContext) -> crate::Result<sources::Source> {
         let data_dir = cx
@@ -74,8 +76,8 @@ impl SourceConfig for SnsCanisterConfig {
         ))
     }
 
-    fn outputs(&self, _global_log_namespace: LogNamespace) -> Vec<Output> {
-        vec![Output::default(DataType::Log)]
+    fn outputs(&self, _global_log_namespace: LogNamespace) -> Vec<SourceOutput> {
+        vec![SourceOutput::new_logs(DataType::Log, Definition::any())]
     }
 
     fn can_acknowledge(&self) -> bool {
@@ -240,7 +242,7 @@ struct SnsLogRecord {
 impl SnsLogRecord {
     fn into_event(&self) -> LogEvent {
         let mut log_event = LogEvent::default();
-        log_event.insert(log_schema().timestamp_key(), self.timestamp.clone());
+        log_event.insert("timestamp", self.timestamp.clone());
         log_event.insert(log_schema().message_key(), self.message.clone());
         log_event.insert("severity", self.severity.clone());
         log_event.insert("file", self.file.clone());
