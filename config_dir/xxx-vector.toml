@@ -1,0 +1,23 @@
+# [sources.in_logs_5j7vn]
+# type = "sns_canister"
+# endpoint = "https://7hi6i-7iaaa-aaaaq-aaaqq-cai.raw.ic0.app"
+# data_dir = "logs"
+
+[api]
+enabled = true
+address = "0.0.0.0:8686"
+
+[sources.vector_metrics]
+type = "internal_metrics"
+
+[sinks.out_logs]
+type = "file"
+inputs = ["transform_*"]
+compression = "none"
+path = "logs/logs.log"
+    [sinks.out_logs.encoding]
+    codec = "json"
+
+# [sinks.my_sink_id]
+# type = "blackhole"
+# inputs = [ "*-transform" ]

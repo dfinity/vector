@@ -1,0 +1,35 @@
+sources:
+  source_swap_7hi6i-7iaaa-aaaaq-aaaqq-cai:
+    type: sns_canister
+    endpoint: https://7hi6i-7iaaa-aaaaq-aaaqq-cai.raw.icp0.io
+    data_dir: logs
+  source_governance_24scz-zyaaa-aaaaq-aaapq-cai:
+    type: sns_canister
+    endpoint: https://24scz-zyaaa-aaaaq-aaapq-cai.raw.icp0.io
+    data_dir: logs
+  source_root_23ten-uaaaa-aaaaq-aaapa-cai:
+    type: sns_canister
+    endpoint: https://23ten-uaaaa-aaaaq-aaapa-cai.raw.icp0.io
+    data_dir: logs
+transforms:
+  transform_swap_7hi6i-7iaaa-aaaaq-aaaqq-cai:
+    type: remap
+    inputs:
+      - source_swap_7hi6i-7iaaa-aaaaq-aaaqq-cai
+    source: |-
+      .canister_type="swap"
+      .sns_name="SONIC"
+  transform_governance_24scz-zyaaa-aaaaq-aaapq-cai:
+    type: remap
+    inputs:
+      - source_governance_24scz-zyaaa-aaaaq-aaapq-cai
+    source: |-
+      .canister_type="governance"
+      .sns_name="SONIC"
+  transform_root_23ten-uaaaa-aaaaq-aaapa-cai:
+    type: remap
+    inputs:
+      - source_root_23ten-uaaaa-aaaaq-aaapa-cai
+    source: |-
+      .canister_type="root"
+      .sns_name="SONIC"

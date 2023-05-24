@@ -1,0 +1,35 @@
+sources:
+  source_swap_2hx64-daaaa-aaaaq-aaana-cai:
+    type: sns_canister
+    endpoint: https://2hx64-daaaa-aaaaq-aaana-cai.raw.icp0.io
+    data_dir: logs
+  source_governance_2jvtu-yqaaa-aaaaq-aaama-cai:
+    type: sns_canister
+    endpoint: https://2jvtu-yqaaa-aaaaq-aaama-cai.raw.icp0.io
+    data_dir: logs
+  source_root_3e3x2-xyaaa-aaaaq-aaalq-cai:
+    type: sns_canister
+    endpoint: https://3e3x2-xyaaa-aaaaq-aaalq-cai.raw.icp0.io
+    data_dir: logs
+transforms:
+  transform_swap_2hx64-daaaa-aaaaq-aaana-cai:
+    type: remap
+    inputs:
+      - source_swap_2hx64-daaaa-aaaaq-aaana-cai
+    source: |-
+      .canister_type="swap"
+      .sns_name="OpenChat"
+  transform_governance_2jvtu-yqaaa-aaaaq-aaama-cai:
+    type: remap
+    inputs:
+      - source_governance_2jvtu-yqaaa-aaaaq-aaama-cai
+    source: |-
+      .canister_type="governance"
+      .sns_name="OpenChat"
+  transform_root_3e3x2-xyaaa-aaaaq-aaalq-cai:
+    type: remap
+    inputs:
+      - source_root_3e3x2-xyaaa-aaaaq-aaalq-cai
+    source: |-
+      .canister_type="root"
+      .sns_name="OpenChat"

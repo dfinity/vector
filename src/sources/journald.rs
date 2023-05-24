@@ -877,13 +877,13 @@ fn find_duplicate_match(a_matches: &Matches, b_matches: &Matches) -> Option<(Str
     None
 }
 
-enum Finalizer {
+pub enum Finalizer {
     Sync(SharedCheckpointer),
     Async(OrderedFinalizer<String>),
 }
 
 impl Finalizer {
-    fn new(
+    pub fn new(
         acknowledgements: bool,
         checkpointer: SharedCheckpointer,
         shutdown: ShutdownSignal,
@@ -903,7 +903,7 @@ impl Finalizer {
         }
     }
 
-    async fn finalize(&self, cursor: String, receiver: Option<BatchStatusReceiver>) {
+    pub async fn finalize(&self, cursor: String, receiver: Option<BatchStatusReceiver>) {
         match (self, receiver) {
             (Self::Sync(checkpointer), None) => checkpointer.lock().await.set(cursor).await,
             (Self::Async(finalizer), Some(receiver)) => finalizer.add(cursor, receiver),
@@ -914,13 +914,13 @@ impl Finalizer {
     }
 }
 
-struct Checkpointer {
+pub struct Checkpointer {
     file: File,
     filename: PathBuf,
 }
 
 impl Checkpointer {
-    async fn new(filename: PathBuf) -> Result<Self, io::Error> {
+    pub async fn new(filename: PathBuf) -> Result<Self, io::Error> {
         let file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -930,12 +930,12 @@ impl Checkpointer {
         Ok(Checkpointer { file, filename })
     }
 
-    async fn set(&mut self, token: &str) -> Result<(), io::Error> {
+    pub async fn set(&mut self, token: &str) -> Result<(), io::Error> {
         self.file.seek(SeekFrom::Start(0)).await?;
         self.file.write_all(format!("{}\n", token).as_bytes()).await
     }
 
-    async fn get(&mut self) -> Result<Option<String>, io::Error> {
+    pub async fn get(&mut self) -> Result<Option<String>, io::Error> {
         let mut buf = Vec::<u8>::new();
         self.file.seek(SeekFrom::Start(0)).await?;
         self.file.read_to_end(&mut buf).await?;
@@ -952,13 +952,13 @@ impl Checkpointer {
     }
 }
 
-struct StatefulCheckpointer {
-    checkpointer: Checkpointer,
-    cursor: Option<String>,
+pub struct StatefulCheckpointer {
+    pub checkpointer: Checkpointer,
+    pub cursor: Option<String>,
 }
 
 impl StatefulCheckpointer {
-    async fn new(filename: PathBuf) -> Result<Self, io::Error> {
+    pub async fn new(filename: PathBuf) -> Result<Self, io::Error> {
         let mut checkpointer = Checkpointer::new(filename).await?;
         let cursor = checkpointer.get().await?;
         Ok(Self {
@@ -967,7 +967,7 @@ impl StatefulCheckpointer {
         })
     }
 
-    async fn set(&mut self, token: impl Into<String>) {
+    pub async fn set(&mut self, token: impl Into<String>) {
         let token = token.into();
         if let Err(error) = self.checkpointer.set(&token).await {
             emit!(JournaldCheckpointSetError {
@@ -985,14 +985,14 @@ impl StatefulCheckpointer {
 }
 
 #[derive(Clone)]
-struct SharedCheckpointer(Arc<Mutex<StatefulCheckpointer>>);
+pub struct SharedCheckpointer(Arc<Mutex<StatefulCheckpointer>>);
 
 impl SharedCheckpointer {
-    fn new(c: StatefulCheckpointer) -> Self {
+    pub fn new(c: StatefulCheckpointer) -> Self {
         Self(Arc::new(Mutex::new(c)))
     }
 
-    async fn lock(&self) -> MutexGuard<'_, StatefulCheckpointer> {
+    pub async fn lock(&self) -> MutexGuard<'_, StatefulCheckpointer> {
         self.0.lock().await
     }
 }
