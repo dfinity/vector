@@ -1,0 +1,35 @@
+sources:
+  source_swap_zcdfx-6iaaa-aaaaq-aaagq-cai:
+    type: sns_canister
+    endpoint: https://zcdfx-6iaaa-aaaaq-aaagq-cai.raw.icp0.io
+    data_dir: logs
+  source_governance_zqfso-syaaa-aaaaq-aaafq-cai:
+    type: sns_canister
+    endpoint: https://zqfso-syaaa-aaaaq-aaafq-cai.raw.icp0.io
+    data_dir: logs
+  source_root_zxeu2-7aaaa-aaaaq-aaafa-cai:
+    type: sns_canister
+    endpoint: https://zxeu2-7aaaa-aaaaq-aaafa-cai.raw.icp0.io
+    data_dir: logs
+transforms:
+  transform_swap_zcdfx-6iaaa-aaaaq-aaagq-cai:
+    type: remap
+    inputs:
+      - source_swap_zcdfx-6iaaa-aaaaq-aaagq-cai
+    source: |-
+      .canister_type="swap"
+      .sns_name="SNS-1"
+  transform_governance_zqfso-syaaa-aaaaq-aaafq-cai:
+    type: remap
+    inputs:
+      - source_governance_zqfso-syaaa-aaaaq-aaafq-cai
+    source: |-
+      .canister_type="governance"
+      .sns_name="SNS-1"
+  transform_root_zxeu2-7aaaa-aaaaq-aaafa-cai:
+    type: remap
+    inputs:
+      - source_root_zxeu2-7aaaa-aaaaq-aaafa-cai
+    source: |-
+      .canister_type="root"
+      .sns_name="SNS-1"
