@@ -25,7 +25,7 @@ use super::{
 use crate::config::log_schema;
 use crate::config::LogNamespace;
 use crate::{event::MaybeAsLogMut, ByteSizeOf};
-use lookup::path;
+use lookup::{metadata_path, path};
 
 #[derive(Debug, Deserialize)]
 struct Inner {
@@ -146,7 +146,10 @@ impl LogEvent {
     pub fn from_str_legacy(msg: impl Into<String>) -> Self {
         let mut log = LogEvent::default();
         log.insert(log_schema().message_key(), msg.into());
-        log.insert(log_schema().timestamp_key(), Utc::now());
+        if let Some(timestamp_key) = log_schema().timestamp_key() {
+            log.insert((PathPrefix::Event, timestamp_key), Utc::now());
+        }
+
         log
     }
 
@@ -268,7 +271,7 @@ impl LogEvent {
         self.metadata()
             .schema_definition()
             .meaning_path(meaning.as_ref())
-            .and_then(|path| self.inner.fields.get_by_path(path))
+            .and_then(|path| self.get(path))
     }
 
     // TODO(Jean): Once the event API uses `Lookup`, the allocation here can be removed.
@@ -384,9 +387,8 @@ impl LogEvent {
     /// Merge all fields specified at `fields` from `incoming` to `current`.
     pub fn merge(&mut self, mut incoming: LogEvent, fields: &[impl AsRef<str>]) {
         for field in fields {
-            let incoming_val = match incoming.remove(field.as_ref()) {
-                None => continue,
-                Some(val) => val,
+            let Some(incoming_val) = incoming.remove(field.as_ref()) else {
+                continue
             };
             match self.get_mut(field.as_ref()) {
                 None => {
@@ -396,6 +398,99 @@ impl LogEvent {
             }
         }
         self.metadata.merge(incoming.metadata);
+    }
+}
+
+/// Log Namespace utility methods. These can only be used when an event has a
+/// valid schema definition set (which should be on every event in transforms and sinks).
+impl LogEvent {
+    /// Fetches the "message" path of the event. This is either from the "message" semantic meaning (Vector namespace)
+    /// or from the message key set on the "Global Log Schema" (Legacy namespace).
+    // TODO: This can eventually return a `&TargetOwnedPath` once Semantic meaning and the
+    //   "Global Log Schema" are updated to the new path lookup code
+    pub fn message_path(&self) -> Option<String> {
+        match self.namespace() {
+            LogNamespace::Vector => self.find_key_by_meaning("message"),
+            LogNamespace::Legacy => Some(log_schema().message_key().to_owned()),
+        }
+    }
+
+    /// Fetches the "timestamp" path of the event. This is either from the "timestamp" semantic meaning (Vector namespace)
+    /// or from the timestamp key set on the "Global Log Schema" (Legacy namespace).
+    // TODO: This can eventually return a `&TargetOwnedPath` once Semantic meaning and the
+    //   "Global Log Schema" are updated to the new path lookup code
+    pub fn timestamp_path(&self) -> Option<String> {
+        match self.namespace() {
+            LogNamespace::Vector => self.find_key_by_meaning("timestamp"),
+            LogNamespace::Legacy => log_schema().timestamp_key().map(ToString::to_string),
+        }
+    }
+
+    /// Fetches the `host` path of the event. This is either from the "host" semantic meaning (Vector namespace)
+    /// or from the host key set on the "Global Log Schema" (Legacy namespace).
+    // TODO: This can eventually return a `&TargetOwnedPath` once Semantic meaning and the
+    //   "Global Log Schema" are updated to the new path lookup code
+    pub fn host_path(&self) -> Option<String> {
+        match self.namespace() {
+            LogNamespace::Vector => self.find_key_by_meaning("host"),
+            LogNamespace::Legacy => Some(log_schema().host_key().to_owned()),
+        }
+    }
+
+    /// Fetches the `source_type` path of the event. This is either from the `source_type` Vector metadata field (Vector namespace)
+    /// or from the `source_type` key set on the "Global Log Schema" (Legacy namespace).
+    // TODO: This can eventually return a `&TargetOwnedPath` once Semantic meaning and the
+    //   "Global Log Schema" are updated to the new path lookup code
+    pub fn source_type_path(&self) -> &'static str {
+        match self.namespace() {
+            LogNamespace::Vector => "%vector.source_type",
+            LogNamespace::Legacy => log_schema().source_type_key(),
+        }
+    }
+
+    /// Fetches the `message` of the event. This is either from the "message" semantic meaning (Vector namespace)
+    /// or from the message key set on the "Global Log Schema" (Legacy namespace).
+    pub fn get_message(&self) -> Option<&Value> {
+        match self.namespace() {
+            LogNamespace::Vector => self.get_by_meaning("message"),
+            LogNamespace::Legacy => self.get((PathPrefix::Event, log_schema().message_key())),
+        }
+    }
+
+    /// Fetches the `timestamp` of the event. This is either from the "timestamp" semantic meaning (Vector namespace)
+    /// or from the timestamp key set on the "Global Log Schema" (Legacy namespace).
+    pub fn get_timestamp(&self) -> Option<&Value> {
+        match self.namespace() {
+            LogNamespace::Vector => self.get_by_meaning("timestamp"),
+            LogNamespace::Legacy => log_schema()
+                .timestamp_key()
+                .and_then(|key| self.get((PathPrefix::Event, key))),
+        }
+    }
+
+    /// Removes the `timestamp` from the event. This is either from the "timestamp" semantic meaning (Vector namespace)
+    /// or from the timestamp key set on the "Global Log Schema" (Legacy namespace).
+    pub fn remove_timestamp(&mut self) -> Option<Value> {
+        self.timestamp_path()
+            .and_then(|key| self.remove(key.as_str()))
+    }
+
+    /// Fetches the `host` of the event. This is either from the "host" semantic meaning (Vector namespace)
+    /// or from the host key set on the "Global Log Schema" (Legacy namespace).
+    pub fn get_host(&self) -> Option<&Value> {
+        match self.namespace() {
+            LogNamespace::Vector => self.get_by_meaning("host"),
+            LogNamespace::Legacy => self.get((PathPrefix::Event, log_schema().host_key())),
+        }
+    }
+
+    /// Fetches the `source_type` of the event. This is either from the `source_type` Vector metadata field (Vector namespace)
+    /// or from the `source_type` key set on the "Global Log Schema" (Legacy namespace).
+    pub fn get_source_type(&self) -> Option<&Value> {
+        match self.namespace() {
+            LogNamespace::Vector => self.get(metadata_path!("vector", "source_type")),
+            LogNamespace::Legacy => self.get((PathPrefix::Event, log_schema().source_type_key())),
+        }
     }
 }
 
@@ -426,8 +521,9 @@ mod test_utils {
             let mut log = LogEvent::default();
 
             log.insert(log_schema().message_key(), message);
-            log.insert(log_schema().timestamp_key(), Utc::now());
-
+            if let Some(timestamp_key) = log_schema().timestamp_key() {
+                log.insert((PathPrefix::Event, timestamp_key), Utc::now());
+            }
             log
         }
     }
@@ -598,7 +694,7 @@ mod test {
     use super::*;
     use crate::test_util::open_fixture;
     use lookup::event_path;
-    use vrl_lib::value;
+    use vrl::value::value;
 
     // The following two tests assert that renaming a key has no effect if the
     // keys are equivalent, whether the key exists in the log or not.

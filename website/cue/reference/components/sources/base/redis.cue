@@ -55,7 +55,7 @@ base: components: sources: redis: configuration: {
 					syslog: """
 						Decodes the raw bytes as a Syslog message.
 
-						Will decode either as the [RFC 3164][rfc3164]-style format ("old" style) or the more modern
+						Decodes either as the [RFC 3164][rfc3164]-style format ("old" style) or the
 						[RFC 5424][rfc5424]-style format ("new" style, includes structured data).
 
 						[rfc3164]: https://www.ietf.org/rfc/rfc3164.txt
@@ -69,8 +69,8 @@ base: components: sources: redis: configuration: {
 		description: """
 			Framing configuration.
 
-			Framing deals with how events are separated when encoded in a raw byte form, where each event is
-			a "frame" that must be prefixed, or delimited, in a way that marks where an event begins and
+			Framing handles how events are separated when encoded in a raw byte form, where each event is
+			a frame that must be prefixed, or delimited, in a way that marks where an event begins and
 			ends within the byte stream.
 			"""
 		required: false
@@ -90,6 +90,14 @@ base: components: sources: redis: configuration: {
 																The maximum length of the byte buffer.
 
 																This length does *not* include the trailing delimiter.
+
+																By default, there is no maximum length enforced. If events are malformed, this can lead to
+																additional resource usage as events continue to be buffered in memory, and can potentially
+																lead to memory exhaustion in extreme cases.
+
+																If there is a risk of processing malformed data, such as logs with user-controlled input,
+																consider setting the maximum length to a reasonably large value as a safety net. This
+																ensures that processing is not actually unbounded.
 																"""
 						required: false
 						type: uint: {}
@@ -102,7 +110,7 @@ base: components: sources: redis: configuration: {
 				type: string: {
 					default: "bytes"
 					enum: {
-						bytes:               "Byte frames are passed through as-is according to the underlying I/O boundaries (e.g. split between messages or stream segments)."
+						bytes:               "Byte frames are passed through as-is according to the underlying I/O boundaries (for example, split between messages or stream segments)."
 						character_delimited: "Byte frames which are delimited by a chosen character."
 						length_delimited:    "Byte frames which are prefixed by an unsigned big-endian 32-bit integer indicating the length."
 						newline_delimited:   "Byte frames which are delimited by a newline character."
@@ -123,6 +131,14 @@ base: components: sources: redis: configuration: {
 						The maximum length of the byte buffer.
 
 						This length does *not* include the trailing delimiter.
+
+						By default, there is no maximum length enforced. If events are malformed, this can lead to
+						additional resource usage as events continue to be buffered in memory, and can potentially
+						lead to memory exhaustion in extreme cases.
+
+						If there is a risk of processing malformed data, such as logs with user-controlled input,
+						consider setting the maximum length to a reasonably large value as a safety net. This
+						ensures that processing is not actually unbounded.
 						"""
 					required: false
 					type: uint: {}
@@ -143,7 +159,9 @@ base: components: sources: redis: configuration: {
 	key: {
 		description: "The Redis key to read messages from."
 		required:    true
-		type: string: {}
+		type: string: examples: [
+			"vector",
+		]
 	}
 	list: {
 		description: "Options for the Redis `list` data type."
@@ -161,20 +179,20 @@ base: components: sources: redis: configuration: {
 		description: """
 			Sets the name of the log field to use to add the key to each event.
 
-			The value will be the Redis key that the event was read from.
+			The value is the Redis key that the event was read from.
 
-			By default, this is not set and the field will not be automatically added.
+			By default, this is not set and the field is not automatically added.
 			"""
 		required: false
-		type: string: {}
+		type: string: examples: ["redis_key"]
 	}
 	url: {
 		description: """
 			The Redis URL to connect to.
 
-			The URL must take the form of `protocol://server:port/db` where the `protocol` can either be `redis` or `rediss` for connections secured via TLS.
+			The URL must take the form of `protocol://server:port/db` where the `protocol` can either be `redis` or `rediss` for connections secured using TLS.
 			"""
 		required: true
-		type: string: {}
+		type: string: examples: ["redis://127.0.0.1:6379/0"]
 	}
 }

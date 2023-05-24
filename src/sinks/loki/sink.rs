@@ -27,7 +27,6 @@ use crate::sinks::{
 };
 use crate::{
     codecs::{Encoder, Transformer},
-    config::log_schema,
     http::{get_http_scheme_from_uri, HttpClient},
     internal_events::{
         LokiEventUnlabeled, LokiOutOfOrderEventDropped, LokiOutOfOrderEventRewritten,
@@ -164,32 +163,94 @@ pub(super) struct EventEncoder {
 
 impl EventEncoder {
     fn build_labels(&self, event: &Event) -> Vec<(String, String)> {
-        let mut vec: Vec<(String, String)> = Vec::new();
+        let mut static_labels: HashMap<String, String> = HashMap::new();
+        let mut dynamic_labels: HashMap<String, String> = HashMap::new();
 
         for (key_template, value_template) in self.labels.iter() {
-            if let (Ok(key), Ok(value)) = (
-                key_template.render_string(event),
-                value_template.render_string(event),
-            ) {
-                if let Some(opening_prefix) = key.strip_suffix('*') {
-                    let output: Result<serde_json::map::Map<String, serde_json::Value>, _> =
-                        serde_json::from_str(value.as_str());
+            let key = key_template.render_string(event);
+            let value = value_template.render_string(event);
 
-                    if let Ok(output) = output {
-                        // key_* -> key_one, key_two, key_three
-                        for (k, v) in output {
-                            vec.push((
-                                slugify_text(format!("{}{}", opening_prefix, k)),
-                                Value::from(v).to_string_lossy().into_owned(),
-                            ))
-                        }
-                    }
-                } else {
-                    vec.push((key, value));
+            if key.is_err() || value.is_err() {
+                if key.is_err() {
+                    emit!(TemplateRenderingError {
+                        field: Some(
+                            format!(
+                                "label_key \"{}\" with label_value \"{}\"",
+                                key_template, value_template
+                            )
+                            .as_str()
+                        ),
+                        drop_event: false,
+                        error: key.err().unwrap(),
+                    });
                 }
+                if value.is_err() {
+                    emit!(TemplateRenderingError {
+                        field: Some(
+                            format!(
+                                "label_value \"{}\" with label_key \"{}\"",
+                                value_template, key_template
+                            )
+                            .as_str()
+                        ),
+                        drop_event: false,
+                        error: value.err().unwrap(),
+                    });
+                }
+                continue;
+            }
+
+            let key_s = key.unwrap();
+            let value_s = value.unwrap();
+
+            if let Some(opening_prefix) = key_s.strip_suffix('*') {
+                let output: Result<
+                    serde_json::map::Map<String, serde_json::Value>,
+                    serde_json::Error,
+                > = serde_json::from_str(value_s.clone().as_str());
+
+                if output.is_err() {
+                    warn!(
+                        "Failed to expand dynamic label. value: {}, err: {}",
+                        value_s,
+                        output.err().unwrap()
+                    );
+                    continue;
+                }
+
+                // key_* -> key_one, key_two, key_three
+                // * -> one, two, three
+                for (k, v) in output.unwrap() {
+                    let key = slugify_text(format!("{}{}", opening_prefix, k));
+                    let val = Value::from(v).to_string_lossy().into_owned();
+                    if val == "<null>" {
+                        warn!("Encountered \"null\" value for dynamic label. key: {}", key);
+                        continue;
+                    }
+                    if let Some(prev) = dynamic_labels.insert(key.clone(), val.clone()) {
+                        warn!(
+                            "Encountered duplicated dynamic label. \
+                                key: {}, value: {}, discarded value: {}",
+                            key, val, prev
+                        );
+                    };
+                }
+            } else {
+                static_labels.insert(key_s, value_s);
             }
         }
-        vec
+
+        for (k, v) in static_labels {
+            if let Some(discarded_v) = dynamic_labels.insert(k.clone(), v.clone()) {
+                warn!(
+                    "Static label overrides dynamic label. \
+                key: {}, value: {}, discarded value: {}",
+                    k, v, discarded_v
+                );
+            };
+        }
+
+        Vec::from_iter(dynamic_labels)
     }
 
     fn remove_label_fields(&self, event: &mut Event) {
@@ -210,15 +271,13 @@ impl EventEncoder {
         let mut labels = self.build_labels(&event);
         self.remove_label_fields(&mut event);
 
-        let schema = log_schema();
-        let timestamp_key = schema.timestamp_key();
-        let timestamp = match event.as_log().get(timestamp_key) {
+        let timestamp = match event.as_log().get_timestamp() {
             Some(Value::Timestamp(ts)) => ts.timestamp_nanos(),
             _ => chrono::Utc::now().timestamp_nanos(),
         };
 
         if self.remove_timestamp {
-            event.as_mut_log().remove(timestamp_key);
+            event.as_mut_log().remove_timestamp();
         }
 
         self.transformer.transform(&mut event);
@@ -491,9 +550,16 @@ mod tests {
         };
         let mut event = Event::Log(LogEvent::from("hello world"));
         let log = event.as_mut_log();
-        log.insert(log_schema().timestamp_key(), chrono::Utc::now());
+        log.insert(
+            (
+                lookup::PathPrefix::Event,
+                log_schema().timestamp_key().unwrap(),
+            ),
+            chrono::Utc::now(),
+        );
         let record = encoder.encode_event(event).unwrap();
-        assert!(String::from_utf8_lossy(&record.event.event).contains(log_schema().timestamp_key()));
+        assert!(String::from_utf8_lossy(&record.event.event)
+            .contains(log_schema().timestamp_key().unwrap().to_string().as_str()));
         assert_eq!(record.labels.len(), 1);
         assert_eq!(
             record.labels[0],
@@ -530,7 +596,13 @@ mod tests {
         };
         let mut event = Event::Log(LogEvent::from("hello world"));
         let log = event.as_mut_log();
-        log.insert(log_schema().timestamp_key(), chrono::Utc::now());
+        log.insert(
+            (
+                lookup::PathPrefix::Event,
+                log_schema().timestamp_key().unwrap(),
+            ),
+            chrono::Utc::now(),
+        );
         log.insert("name", "foo");
         log.insert("value", "bar");
 
@@ -540,7 +612,8 @@ mod tests {
         log.insert("dict", Value::from(test_dict));
 
         let record = encoder.encode_event(event).unwrap();
-        assert!(String::from_utf8_lossy(&record.event.event).contains(log_schema().timestamp_key()));
+        assert!(String::from_utf8_lossy(&record.event.event)
+            .contains(log_schema().timestamp_key().unwrap().to_string().as_str()));
         assert_eq!(record.labels.len(), 4);
 
         let labels: HashMap<String, String> = record.labels.into_iter().collect();
@@ -548,6 +621,129 @@ mod tests {
         assert_eq!(labels["foo"], "bar".to_string());
         assert_eq!(labels["test_key_one"], "foo".to_string());
         assert_eq!(labels["test_key_two"], "baz".to_string());
+    }
+
+    #[test]
+    fn encoder_with_dynamic_labels() -> Result<(), serde_json::Error> {
+        let mut labels = HashMap::default();
+        labels.insert(
+            Template::try_from("pod_labels_*").unwrap(),
+            Template::try_from("{{ kubernetes.pod_labels }}").unwrap(),
+        );
+        labels.insert(
+            Template::try_from("*").unwrap(),
+            Template::try_from("{{ metadata }}").unwrap(),
+        );
+        labels.insert(
+            Template::try_from("cluster_name").unwrap(),
+            Template::try_from("static_cluster_name").unwrap(),
+        );
+
+        let mut encoder = EventEncoder {
+            key_partitioner: KeyPartitioner::new(None),
+            transformer: Default::default(),
+            encoder: Encoder::<()>::new(JsonSerializerConfig::default().build().into()),
+            labels,
+            remove_label_fields: false,
+            remove_timestamp: false,
+        };
+
+        let message = r###"
+        {
+        	"kubernetes": {
+        		"pod_labels": {
+        			"app": "web-server",
+        			"name": "unicorn"
+        		}
+        	},
+        	"metadata": {
+        		"cluster_name": "operations",
+        		"cluster_environment": "development",
+        		"cluster_version": "1.2.3"
+        	}
+        }
+        "###;
+        let msg: BTreeMap<String, Value> = serde_json::from_str(message)?;
+        let event = Event::Log(LogEvent::from(msg));
+        let record = encoder.encode_event(event).unwrap();
+
+        assert_eq!(record.labels.len(), 5);
+        let labels: HashMap<String, String> = record.labels.into_iter().collect();
+        assert_eq!(labels["pod_labels_app"], "web-server".to_string());
+        assert_eq!(labels["pod_labels_name"], "unicorn".to_string());
+        assert_eq!(labels["cluster_name"], "static_cluster_name".to_string());
+        assert_eq!(labels["cluster_environment"], "development".to_string());
+        assert_eq!(labels["cluster_version"], "1.2.3".to_string());
+        Ok(())
+    }
+
+    #[test]
+    fn encoder_with_colliding_dynamic_labels() -> Result<(), serde_json::Error> {
+        let mut labels = HashMap::default();
+        labels.insert(
+            Template::try_from("l1_*").unwrap(),
+            Template::try_from("{{ map1 }}").unwrap(),
+        );
+        labels.insert(
+            Template::try_from("*").unwrap(),
+            Template::try_from("{{ map2 }}").unwrap(),
+        );
+
+        let mut encoder = EventEncoder {
+            key_partitioner: KeyPartitioner::new(None),
+            transformer: Default::default(),
+            encoder: Encoder::<()>::new(JsonSerializerConfig::default().build().into()),
+            labels,
+            remove_label_fields: false,
+            remove_timestamp: false,
+        };
+
+        let message = r###"
+        {
+        	"map1": {
+        		"key1": "val1"
+        	},
+        	"map2": {
+        		"l1_key1": "val2"
+        	}
+        }
+        "###;
+        let msg: BTreeMap<String, Value> = serde_json::from_str(message)?;
+        let event = Event::Log(LogEvent::from(msg));
+        let record = encoder.encode_event(event).unwrap();
+
+        assert_eq!(record.labels.len(), 1);
+        let labels: HashMap<String, String> = record.labels.into_iter().collect();
+        // EventEncoder.labels is type HashMap (unordered) -> both values can be valid
+        assert!(vec!["val1".to_string(), "val2".to_string()].contains(&labels["l1_key1"]));
+        Ok(())
+    }
+
+    #[test]
+    fn encoder_with_failing_dynamic_label_expansion() -> Result<(), serde_json::Error> {
+        let mut labels = HashMap::default();
+        labels.insert(
+            Template::try_from("missing_*").unwrap(),
+            Template::try_from("{{ map }}").unwrap(),
+        );
+
+        let mut encoder = EventEncoder {
+            key_partitioner: KeyPartitioner::new(None),
+            transformer: Default::default(),
+            encoder: Encoder::<()>::new(JsonSerializerConfig::default().build().into()),
+            labels,
+            remove_label_fields: false,
+            remove_timestamp: false,
+        };
+
+        let msg: BTreeMap<String, Value> = serde_json::from_str("{}")?;
+        let event = Event::Log(LogEvent::from(msg));
+        let record = encoder.encode_event(event).unwrap();
+
+        assert_eq!(record.labels.len(), 1);
+        let labels: HashMap<String, String> = record.labels.into_iter().collect();
+        assert_eq!(labels["agent"], "vector".to_string());
+        Ok(())
     }
 
     #[test]
@@ -562,11 +758,16 @@ mod tests {
         };
         let mut event = Event::Log(LogEvent::from("hello world"));
         let log = event.as_mut_log();
-        log.insert(log_schema().timestamp_key(), chrono::Utc::now());
-        let record = encoder.encode_event(event).unwrap();
-        assert!(
-            !String::from_utf8_lossy(&record.event.event).contains(log_schema().timestamp_key())
+        log.insert(
+            (
+                lookup::PathPrefix::Event,
+                log_schema().timestamp_key().unwrap(),
+            ),
+            chrono::Utc::now(),
         );
+        let record = encoder.encode_event(event).unwrap();
+        assert!(!String::from_utf8_lossy(&record.event.event)
+            .contains(log_schema().timestamp_key().unwrap().to_string().as_str()));
     }
 
     #[test]
@@ -590,7 +791,13 @@ mod tests {
         };
         let mut event = Event::Log(LogEvent::from("hello world"));
         let log = event.as_mut_log();
-        log.insert(log_schema().timestamp_key(), chrono::Utc::now());
+        log.insert(
+            (
+                lookup::PathPrefix::Event,
+                log_schema().timestamp_key().unwrap(),
+            ),
+            chrono::Utc::now(),
+        );
         log.insert("name", "foo");
         log.insert("value", "bar");
         let record = encoder.encode_event(event).unwrap();
@@ -619,7 +826,13 @@ mod tests {
                 } else {
                     base + chrono::Duration::seconds(i as i64)
                 };
-                log.insert(log_schema().timestamp_key(), ts);
+                log.insert(
+                    (
+                        lookup::PathPrefix::Event,
+                        log_schema().timestamp_key().unwrap(),
+                    ),
+                    ts,
+                );
                 event
             })
             .collect::<Vec<_>>();

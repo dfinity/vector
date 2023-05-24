@@ -32,17 +32,12 @@ pub struct BasicSinkConfig {
 
 impl_generate_config_from_default!(BasicSinkConfig);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 #[allow(clippy::large_enum_variant)]
 enum Mode {
     Normal(SourceSender),
+    #[default]
     Dead,
-}
-
-impl Default for Mode {
-    fn default() -> Self {
-        Mode::Dead
-    }
 }
 
 impl BasicSinkConfig {
@@ -80,7 +75,7 @@ impl SinkConfig for BasicSinkConfig {
         let health_tx = if self.healthy {
             Some(tx)
         } else {
-            let _ = tx.send(Err(HealthcheckError::Unhealthy.into()));
+            _ = tx.send(Err(HealthcheckError::Unhealthy.into()));
             None
         };
 
@@ -114,7 +109,7 @@ impl StreamSink<Event> for MockSink {
         match self.sink {
             Mode::Normal(mut sink) => {
                 if let Some(tx) = self.health_tx.take() {
-                    let _ = tx.send(Ok(()));
+                    _ = tx.send(Ok(()));
                 }
 
                 // We have an inner sink, so forward the input normally

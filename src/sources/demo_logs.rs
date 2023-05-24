@@ -14,12 +14,12 @@ use tokio_util::codec::FramedRead;
 use vector_common::internal_event::{
     ByteSize, BytesReceived, CountByteSize, InternalEventHandle as _, Protocol,
 };
-use vector_config::{configurable_component, NamedComponent};
+use vector_config::configurable_component;
 use vector_core::{config::LogNamespace, EstimatedJsonEncodedSizeOf};
 
 use crate::{
     codecs::{Decoder, DecodingConfig},
-    config::{Output, SourceConfig, SourceContext},
+    config::{SourceConfig, SourceContext, SourceOutput},
     internal_events::{DemoLogsEventProcessed, EventsReceived, StreamClosedError},
     serde::{default_decoding, default_framing_message_based},
     shutdown::ShutdownSignal,
@@ -28,13 +28,16 @@ use crate::{
 
 /// Configuration for the `demo_logs` source.
 #[serde_as]
-#[configurable_component(source("demo_logs"))]
+#[configurable_component(source(
+    "demo_logs",
+    "Generate fake log events, which can be useful for testing and demos."
+))]
 #[derive(Clone, Debug, Derivative)]
 #[derivative(Default)]
 pub struct DemoLogsConfig {
     /// The amount of time, in seconds, to pause between each batch of output lines.
     ///
-    /// The default is one batch per second. In order to remove the delay and output batches as quickly as possible, set
+    /// The default is one batch per second. To remove the delay and output batches as quickly as possible, set
     /// `interval` to `0.0`.
     #[serde(alias = "batch_interval")]
     #[derivative(Default(value = "default_interval()"))]
@@ -106,24 +109,29 @@ pub enum OutputFormat {
     },
 
     /// Randomly generated logs in [Apache common][apache_common] format.
+    ///
     /// [apache_common]: https://httpd.apache.org/docs/current/logs.html#common
     ApacheCommon,
 
     /// Randomly generated logs in [Apache error][apache_error] format.
+    ///
     /// [apache_error]: https://httpd.apache.org/docs/current/logs.html#errorlog
     ApacheError,
 
     /// Randomly generated logs in Syslog format ([RFC 5424][syslog_5424]).
+    ///
     /// [syslog_5424]: https://tools.ietf.org/html/rfc5424
     #[serde(alias = "rfc5424")]
     Syslog,
 
     /// Randomly generated logs in Syslog format ([RFC 3164][syslog_3164]).
+    ///
     /// [syslog_3164]: https://tools.ietf.org/html/rfc3164
     #[serde(alias = "rfc3164")]
     BsdSyslog,
 
     /// Randomly generated HTTP server logs in [JSON][json] format.
+    ///
     /// [json]: https://en.wikipedia.org/wiki/JSON
     #[derivative(Default)]
     Json,
@@ -265,6 +273,7 @@ async fn demo_logs_source(
 impl_generate_config_from_default!(DemoLogsConfig);
 
 #[async_trait::async_trait]
+#[typetag::serde(name = "demo_logs")]
 impl SourceConfig for DemoLogsConfig {
     async fn build(&self, cx: SourceContext) -> crate::Result<super::Source> {
         let log_namespace = cx.log_namespace(self.log_namespace);
@@ -283,7 +292,7 @@ impl SourceConfig for DemoLogsConfig {
         )))
     }
 
-    fn outputs(&self, global_log_namespace: LogNamespace) -> Vec<Output> {
+    fn outputs(&self, global_log_namespace: LogNamespace) -> Vec<SourceOutput> {
         // There is a global and per-source `log_namespace` config. The source config overrides the global setting,
         // and is merged here.
         let log_namespace = global_log_namespace.merge(self.log_namespace);
@@ -293,7 +302,10 @@ impl SourceConfig for DemoLogsConfig {
             .schema_definition(log_namespace)
             .with_standard_vector_source_metadata();
 
-        vec![Output::default(self.decoding.output_type()).with_schema_definition(schema_definition)]
+        vec![SourceOutput::new_logs(
+            self.decoding.output_type(),
+            schema_definition,
+        )]
     }
 
     fn can_acknowledge(&self) -> bool {

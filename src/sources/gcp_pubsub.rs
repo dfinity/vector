@@ -20,17 +20,17 @@ use tonic::{
     transport::{Certificate, ClientTlsConfig, Endpoint, Identity},
     Code, Request, Status,
 };
-use value::{kind::Collection, Kind};
 use vector_common::internal_event::{
     ByteSize, BytesReceived, EventsReceived, InternalEventHandle as _, Protocol, Registered,
 };
 use vector_common::{byte_size_of::ByteSizeOf, finalizer::UnorderedFinalizer};
-use vector_config::{configurable_component, NamedComponent};
+use vector_config::configurable_component;
 use vector_core::config::{LegacyKey, LogNamespace};
+use vrl::value::{kind::Collection, Kind};
 
 use crate::{
     codecs::{Decoder, DecodingConfig},
-    config::{DataType, Output, SourceAcknowledgementsConfig, SourceConfig, SourceContext},
+    config::{DataType, SourceAcknowledgementsConfig, SourceConfig, SourceContext, SourceOutput},
     event::{BatchNotifier, BatchStatus, Event, MaybeAsLogMut, Value},
     gcp::{GcpAuthConfig, GcpAuthenticator, Scope, PUBSUB_URL},
     internal_events::{
@@ -61,6 +61,8 @@ type Finalizer = UnorderedFinalizer<Vec<String>>;
 // objects, which causes a clippy ding on this block. We don't
 // directly control the generated code, so allow this lint here.
 #[allow(clippy::clone_on_ref_ptr)]
+// https://github.com/hyperium/tonic/issues/1350
+#[allow(clippy::missing_const_for_fn)]
 #[allow(warnings)]
 mod proto {
     include!(concat!(env!("OUT_DIR"), "/google.pubsub.v1.rs"));
@@ -119,7 +121,10 @@ static CLIENT_ID: Lazy<String> = Lazy::new(|| uuid::Uuid::new_v4().to_string());
 
 /// Configuration for the `gcp_pubsub` source.
 #[serde_as]
-#[configurable_component(source("gcp_pubsub"))]
+#[configurable_component(source(
+    "gcp_pubsub",
+    "Fetch observability events from GCP's Pub/Sub messaging system."
+))]
 #[derive(Clone, Debug, Derivative)]
 #[derivative(Default)]
 #[serde(deny_unknown_fields)]
@@ -167,8 +172,12 @@ pub struct PubsubConfig {
     #[serde_as(as = "serde_with::DurationSeconds<u64>")]
     pub ack_deadline_secs: Duration,
 
-    /// Deprecated, old name of `ack_deadline_secs`.
-    #[configurable(deprecated)]
+    /// The acknowledgement deadline, in seconds, to use for this stream.
+    ///
+    /// Messages that are not acknowledged when this deadline expires may be retransmitted.
+    #[configurable(
+        deprecated = "This option has been deprecated, use `ack_deadline_secs` instead."
+    )]
     pub ack_deadline_seconds: Option<u16>,
 
     /// The amount of time, in seconds, to wait between retry attempts after an error.
@@ -176,8 +185,10 @@ pub struct PubsubConfig {
     #[serde_as(as = "serde_with::DurationSeconds<f64>")]
     pub retry_delay_secs: Duration,
 
-    /// Deprecated, old name of `retry_delay_secs`.
-    #[configurable(deprecated)]
+    /// The amount of time, in seconds, to wait between retry attempts after an error.
+    #[configurable(
+        deprecated = "This option has been deprecated, use `retry_delay_secs` instead."
+    )]
     pub retry_delay_seconds: Option<f64>,
 
     /// The amount of time, in seconds, with no received activity
@@ -236,6 +247,7 @@ const fn default_poll_time() -> Duration {
 }
 
 #[async_trait::async_trait]
+#[typetag::serde(name = "gcp_pubsub")]
 impl SourceConfig for PubsubConfig {
     async fn build(&self, cx: SourceContext) -> crate::Result<crate::sources::Source> {
         let log_namespace = cx.log_namespace(self.log_namespace);
@@ -316,7 +328,7 @@ impl SourceConfig for PubsubConfig {
         Ok(Box::pin(source))
     }
 
-    fn outputs(&self, global_log_namespace: LogNamespace) -> Vec<Output> {
+    fn outputs(&self, global_log_namespace: LogNamespace) -> Vec<SourceOutput> {
         let log_namespace = global_log_namespace.merge(self.log_namespace);
         let schema_definition = self
             .decoding
@@ -344,7 +356,7 @@ impl SourceConfig for PubsubConfig {
                 None,
             );
 
-        vec![Output::default(DataType::Log).with_schema_definition(schema_definition)]
+        vec![SourceOutput::new_logs(DataType::Log, schema_definition)]
     }
 
     fn can_acknowledge(&self) -> bool {
@@ -491,7 +503,7 @@ impl PubsubSource {
         let mut stream = stream.into_inner();
 
         let (finalizer, mut ack_stream) =
-            Finalizer::maybe_new(self.acknowledgements, self.shutdown.clone());
+            Finalizer::maybe_new(self.acknowledgements, Some(self.shutdown.clone()));
         let mut pending_acks = 0;
 
         loop {
@@ -729,7 +741,7 @@ impl Future for Task {
 
 #[cfg(test)]
 mod tests {
-    use lookup::LookupBuf;
+    use lookup::OwnedTargetPath;
     use vector_core::schema::Definition;
 
     use super::*;
@@ -746,43 +758,51 @@ mod tests {
             ..Default::default()
         };
 
-        let definition = config.outputs(LogNamespace::Vector)[0]
-            .clone()
-            .log_schema_definition
-            .unwrap();
+        let definitions = config
+            .outputs(LogNamespace::Vector)
+            .remove(0)
+            .schema_definition(true);
 
         let expected_definition =
             Definition::new_with_default_metadata(Kind::bytes(), [LogNamespace::Vector])
-                .with_meaning(LookupBuf::root(), "message")
-                .with_metadata_field(&owned_value_path!("vector", "source_type"), Kind::bytes())
+                .with_meaning(OwnedTargetPath::event_root(), "message")
+                .with_metadata_field(
+                    &owned_value_path!("vector", "source_type"),
+                    Kind::bytes(),
+                    None,
+                )
                 .with_metadata_field(
                     &owned_value_path!("vector", "ingest_timestamp"),
                     Kind::timestamp(),
+                    None,
                 )
                 .with_metadata_field(
                     &owned_value_path!("gcp_pubsub", "timestamp"),
                     Kind::timestamp().or_undefined(),
+                    Some("timestamp"),
                 )
                 .with_metadata_field(
                     &owned_value_path!("gcp_pubsub", "attributes"),
                     Kind::object(Collection::empty().with_unknown(Kind::bytes())),
+                    None,
                 )
                 .with_metadata_field(
                     &owned_value_path!("gcp_pubsub", "message_id"),
                     Kind::bytes(),
+                    None,
                 );
 
-        assert_eq!(definition, expected_definition);
+        assert_eq!(definitions, Some(expected_definition));
     }
 
     #[test]
     fn output_schema_definition_legacy_namespace() {
         let config = PubsubConfig::default();
 
-        let definition = config.outputs(LogNamespace::Legacy)[0]
-            .clone()
-            .log_schema_definition
-            .unwrap();
+        let definitions = config
+            .outputs(LogNamespace::Legacy)
+            .remove(0)
+            .schema_definition(true);
 
         let expected_definition = Definition::new_with_default_metadata(
             Kind::object(Collection::empty()),
@@ -806,7 +826,7 @@ mod tests {
         )
         .with_event_field(&owned_value_path!("message_id"), Kind::bytes(), None);
 
-        assert_eq!(definition, expected_definition);
+        assert_eq!(definitions, Some(expected_definition));
     }
 }
 
@@ -821,7 +841,7 @@ mod integration_tests {
     use once_cell::sync::Lazy;
     use serde_json::{json, Value};
     use tokio::time::{Duration, Instant};
-    use vector_common::btreemap;
+    use vrl::value::btreemap;
 
     use super::*;
     use crate::config::{ComponentKey, ProxyConfig};

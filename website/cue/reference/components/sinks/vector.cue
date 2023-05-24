@@ -12,13 +12,14 @@ components: sinks: vector: {
 	classes: {
 		commonly_used: false
 		delivery:      "best_effort"
-		development:   "beta"
+		development:   "stable"
 		egress_method: "batch"
 		service_providers: []
 		stateful: false
 	}
 	features: {
 		acknowledgements: true
+		auto_generated:   true
 		healthcheck: enabled: true
 		send: {
 			batch: {
@@ -74,21 +75,7 @@ components: sinks: vector: {
 		traces: true
 	}
 
-	configuration: {
-		address: {
-			description: "The downstream Vector address to connect to. The address _must_ include a port."
-			required:    true
-			type: string: {
-				examples: ["92.12.333.224:\(_port)"]
-			}
-		}
-		compression: {
-			description: "Enable gRPC compression with gzip."
-			common:      true
-			required:    false
-			type: bool: default: false
-		}
-	}
+	configuration: base.components.sinks.vector.configuration
 
 	how_it_works: components.sources.vector.how_it_works
 

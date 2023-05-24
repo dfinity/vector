@@ -69,8 +69,8 @@ impl StreamDecodingError for Error {
 
 /// Framing configuration.
 ///
-/// Framing deals with how events are separated when encoded in a raw byte form, where each event is
-/// a "frame" that must be prefixed, or delimited, in a way that marks where an event begins and
+/// Framing handles how events are separated when encoded in a raw byte form, where each event is
+/// a frame that must be prefixed, or delimited, in a way that marks where an event begins and
 /// ends within the byte stream.
 // Unfortunately, copying options of the nested enum variants is necessary
 // since `serde` doesn't allow `flatten`ing these:
@@ -80,7 +80,7 @@ impl StreamDecodingError for Error {
 #[serde(tag = "method", rename_all = "snake_case")]
 #[configurable(metadata(docs::enum_tag_description = "The framing method."))]
 pub enum FramingConfig {
-    /// Byte frames are passed through as-is according to the underlying I/O boundaries (e.g. split between messages or stream segments).
+    /// Byte frames are passed through as-is according to the underlying I/O boundaries (for example, split between messages or stream segments).
     Bytes,
 
     /// Byte frames which are delimited by a chosen character.
@@ -248,7 +248,7 @@ pub enum DeserializerConfig {
     #[cfg(feature = "syslog")]
     /// Decodes the raw bytes as a Syslog message.
     ///
-    /// Will decode either as the [RFC 3164][rfc3164]-style format ("old" style) or the more modern
+    /// Decodes either as the [RFC 3164][rfc3164]-style format ("old" style) or the
     /// [RFC 5424][rfc5424]-style format ("new" style, includes structured data).
     ///
     /// [rfc3164]: https://www.ietf.org/rfc/rfc3164.txt

@@ -13,8 +13,8 @@ use vector_core::{config::DataType, event::Event};
 
 use crate::codecs::{Decoder, DecodingConfig, Encoder, EncodingConfig, EncodingConfigWithFraming};
 
-pub use self::event::TestEvent;
-pub use self::http::HttpResourceConfig;
+pub use self::event::{EventData, TestEvent};
+pub use self::http::{encode_test_event, HttpResourceConfig};
 
 use super::sync::{Configuring, TaskCoordinator};
 
@@ -64,7 +64,7 @@ impl ResourceCodec {
     /// Gets an encoder for this codec.
     ///
     /// The encoder is generated as an inverse to the input codec: if a decoding configuration was
-    /// given, we generate an encoder that satisfies that decoding configuration, and vise versa.
+    /// given, we generate an encoder that satisfies that decoding configuration, and vice versa.
     pub fn into_encoder(&self) -> Encoder<encoding::Framer> {
         let (framer, serializer) = match self {
             Self::Encoding(config) => (
@@ -95,7 +95,7 @@ impl ResourceCodec {
     /// Gets a decoder for this codec.
     ///
     /// The decoder is generated as an inverse to the input codec: if an encoding configuration was
-    /// given, we generate a decoder that satisfies that encoding configuration, and vise versa.
+    /// given, we generate a decoder that satisfies that encoding configuration, and vice versa.
     pub fn into_decoder(&self) -> Decoder {
         let (framer, deserializer) = match self {
             Self::Decoding(config) => return config.build(),
@@ -182,6 +182,7 @@ fn decoder_framing_to_encoding_framer(framing: &decoding::FramingConfig) -> enco
 fn serializer_config_to_deserializer(config: &SerializerConfig) -> decoding::Deserializer {
     let deserializer_config = match config {
         SerializerConfig::Avro { .. } => todo!(),
+        SerializerConfig::Csv { .. } => todo!(),
         SerializerConfig::Gelf => DeserializerConfig::Gelf,
         SerializerConfig::Json(_) => DeserializerConfig::Json,
         SerializerConfig::Logfmt => todo!(),
@@ -276,7 +277,7 @@ impl From<HttpResourceConfig> for ResourceDefinition {
 pub struct ExternalResource {
     direction: ResourceDirection,
     definition: ResourceDefinition,
-    codec: ResourceCodec,
+    pub codec: ResourceCodec,
 }
 
 impl ExternalResource {

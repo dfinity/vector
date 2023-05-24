@@ -3,12 +3,11 @@ package metadata
 components: sinks: datadog_events: {
 	title: "Datadog Events"
 
-	classes: sinks._datadog.classes & {
-		development: "beta"
-	}
+	classes: sinks._datadog.classes
 
 	features: {
 		acknowledgements: true
+		auto_generated:   true
 		healthcheck: enabled: true
 		send: {
 			batch: enabled:       false
@@ -46,11 +45,7 @@ components: sinks: datadog_events: {
 
 	support: sinks._datadog.support
 
-	configuration: {
-		default_api_key: sinks._datadog.configuration.default_api_key
-		endpoint:        sinks._datadog.configuration.endpoint
-		site:            sinks._datadog.configuration.site
-	}
+	configuration: base.components.sinks.datadog_events.configuration
 
 	input: {
 		logs:    true

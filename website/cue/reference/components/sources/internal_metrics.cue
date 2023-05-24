@@ -12,7 +12,7 @@ components: sources: internal_metrics: {
 		commonly_used: true
 		delivery:      "at_least_once"
 		deployment_roles: ["aggregator", "daemon", "sidecar"]
-		development:   "beta"
+		development:   "stable"
 		egress_method: "batch"
 		stateful:      false
 	}
@@ -36,61 +36,7 @@ components: sources: internal_metrics: {
 		platform_name: null
 	}
 
-	configuration: {
-		namespace: {
-			description: "The namespace of the metric."
-			common:      false
-			required:    false
-			type: string: {
-				default: "vector"
-			}
-		}
-		scrape_interval_secs: {
-			description: "The interval between metric gathering, in seconds."
-			common:      true
-			required:    false
-			type: float: {
-				default: 1.0
-				unit:    "seconds"
-			}
-		}
-		tags: {
-			common:      false
-			description: "Metric tag options."
-			required:    false
-
-			type: object: {
-				examples: []
-				options: {
-					host_key: {
-						category:    "Context"
-						common:      false
-						description: """
-							The key name added to each event representing the current host. This can also be globally set via the
-							[global `host_key` option](\(urls.vector_configuration)/global-options#log_schema.host_key).
-
-							Set to "" to suppress this key.
-							"""
-						required:    false
-						type: string: {
-							default: "host"
-						}
-					}
-					pid_key: {
-						category: "Context"
-						common:   false
-						description: """
-							If set, will add a tag using the provided key name with a value of the current the current process ID.
-							"""
-						required: false
-						type: string: {
-							default: null
-						}
-					}
-				}
-			}
-		}
-	}
+	configuration: base.components.sources.internal_metrics.configuration
 
 	output: metrics: {
 		// Default internal metrics tags
@@ -728,6 +674,21 @@ components: sources: internal_metrics: {
 			type:              "counter"
 			default_namespace: "vector"
 			tags:              _component_tags
+		}
+		kafka_consumer_lag: {
+			description:       "The Kafka consumer lag."
+			type:              "gauge"
+			default_namespace: "vector"
+			tags:              _component_tags & {
+				topic_id: {
+					description: "The Kafka topic id."
+					required:    true
+				}
+				partition_id: {
+					description: "The Kafka partition id."
+					required:    true
+				}
+			}
 		}
 		file_delete_errors_total: {
 			description:       "The total number of failures to delete a file. This metric is deprecated in favor of `component_errors_total`."

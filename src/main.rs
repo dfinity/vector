@@ -14,7 +14,7 @@ fn main() {
         let opts = vector::cli::Opts::get_matches()
             .map_err(|error| {
                 // Printing to stdout/err can itself fail; ignore it.
-                let _ = error.print();
+                _ = error.print();
                 exitcode::USAGE
             })
             .unwrap_or_else(|code| {
@@ -35,11 +35,7 @@ fn main() {
         }
     }
 
-    let app = Application::prepare().unwrap_or_else(|code| {
-        std::process::exit(code);
-    });
-
-    app.run();
+    Application::run();
 }
 
 #[cfg(windows)]
@@ -48,11 +44,5 @@ pub fn main() {
     // to run vector as a service. If we fail, we consider that we are in
     // interactive mode and then fallback to console mode.  See
     // https://docs.microsoft.com/en-us/dotnet/api/system.environment.userinteractive?redirectedfrom=MSDN&view=netcore-3.1#System_Environment_UserInteractive
-    vector::vector_windows::run().unwrap_or_else(|_| {
-        let app = Application::prepare().unwrap_or_else(|code| {
-            std::process::exit(code);
-        });
-
-        app.run();
-    });
+    vector::vector_windows::run().unwrap_or_else(|_| Application::run());
 }

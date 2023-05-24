@@ -21,20 +21,20 @@ use super::http_sink::build_http_sink;
 #[derive(Clone, Debug, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ClickhouseConfig {
-    /// The endpoint of the Clickhouse server.
+    /// The endpoint of the ClickHouse server.
     #[serde(alias = "host")]
     #[configurable(metadata(docs::examples = "http://localhost:8123"))]
     pub endpoint: UriSerde,
 
-    /// The table that data will be inserted into.
+    /// The table that data is inserted into.
     #[configurable(metadata(docs::examples = "mytable"))]
     pub table: String,
 
-    /// The database that contains the table that data will be inserted into.
+    /// The database that contains the table that data is inserted into.
     #[configurable(metadata(docs::examples = "mydatabase"))]
     pub database: Option<String>,
 
-    /// Sets `input_format_skip_unknown_fields`, allowing Clickhouse to discard fields not present in the table schema.
+    /// Sets `input_format_skip_unknown_fields`, allowing ClickHouse to discard fields not present in the table schema.
     #[serde(default)]
     pub skip_unknown_fields: bool,
 

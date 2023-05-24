@@ -1,3 +1,4 @@
+#![allow(missing_docs)]
 use std::path::PathBuf;
 
 use clap::{ArgAction, CommandFactory, FromArgMatches, Parser};
@@ -9,6 +10,7 @@ use crate::tap;
 #[cfg(feature = "api-client")]
 use crate::top;
 use crate::{config, generate, get_version, graph, list, unit_test, validate};
+use crate::{generate_schema, signal};
 
 #[derive(Parser, Debug)]
 #[command(rename_all = "kebab-case")]
@@ -235,18 +237,59 @@ pub enum SubCommand {
     Service(service::Opts),
 
     /// Vector Remap Language CLI
-    #[cfg(feature = "vrl-cli")]
-    Vrl(vrl_cli::Opts),
+    Vrl(vrl::cli::Opts),
 }
 
-#[derive(clap::ValueEnum, Debug, Clone, PartialEq, Eq)]
+impl SubCommand {
+    pub async fn execute(
+        &self,
+        mut signals: signal::SignalPair,
+        color: bool,
+    ) -> exitcode::ExitCode {
+        match self {
+            Self::Config(c) => config::cmd(c),
+            Self::Generate(g) => generate::cmd(g),
+            Self::GenerateSchema => generate_schema::cmd(),
+            Self::Graph(g) => graph::cmd(g),
+            Self::List(l) => list::cmd(l),
+            #[cfg(windows)]
+            Self::Service(s) => service::cmd(s),
+            #[cfg(feature = "api-client")]
+            Self::Tap(t) => tap::cmd(t, signals.receiver).await,
+            Self::Test(t) => unit_test::cmd(t, &mut signals.handler).await,
+            #[cfg(feature = "api-client")]
+            Self::Top(t) => top::cmd(t).await,
+            Self::Validate(v) => validate::validate(v, color).await,
+            Self::Vrl(s) => {
+                let mut functions = vrl::stdlib::all();
+                functions.extend(vector_vrl_functions::all());
+                vrl::cli::cmd::cmd(s, functions)
+            }
+        }
+    }
+}
+
+#[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Color {
     Auto,
     Always,
     Never,
 }
 
-#[derive(clap::ValueEnum, Debug, Clone, PartialEq, Eq)]
+impl Color {
+    pub fn use_color(&self) -> bool {
+        match self {
+            #[cfg(unix)]
+            Color::Auto => atty::is(atty::Stream::Stdout),
+            #[cfg(windows)]
+            Color::Auto => false, // ANSI colors are not supported by cmd.exe
+            Color::Always => true,
+            Color::Never => false,
+        }
+    }
+}
+
+#[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogFormat {
     Text,
     Json,

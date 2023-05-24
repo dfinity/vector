@@ -1,15 +1,15 @@
 use bytes::Bytes;
 use lookup::lookup_v2::parse_value_path;
-use lookup::LookupBuf;
+use lookup::OwnedTargetPath;
 use serde::{Deserialize, Serialize};
 use smallvec::{smallvec, SmallVec};
-use value::Kind;
 use vector_core::config::LogNamespace;
 use vector_core::{
     config::{log_schema, DataType},
     event::{Event, LogEvent},
     schema,
 };
+use vrl::value::Kind;
 
 use super::Deserializer;
 
@@ -43,7 +43,7 @@ impl BytesDeserializerConfig {
             ),
             LogNamespace::Vector => {
                 schema::Definition::new_with_default_metadata(Kind::bytes(), [log_namespace])
-                    .with_meaning(LookupBuf::root(), "message")
+                    .with_meaning(OwnedTargetPath::event_root(), "message")
             }
         }
     }
@@ -99,8 +99,8 @@ impl Deserializer for BytesDeserializer {
 
 #[cfg(test)]
 mod tests {
-    use value::Value;
     use vector_core::config::log_schema;
+    use vrl::value::Value;
 
     use super::*;
 

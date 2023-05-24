@@ -12,7 +12,7 @@ base: components: sources: nats: configuration: {
 				type: object: options: path: {
 					description: "Path to credentials file."
 					required:    true
-					type: string: {}
+					type: string: examples: ["/etc/nats/nats.creds"]
 				}
 			}
 			nkey: {
@@ -88,9 +88,15 @@ base: components: sources: nats: configuration: {
 		}
 	}
 	connection_name: {
-		description: "A name assigned to the NATS connection."
-		required:    true
-		type: string: {}
+		description: """
+			A [name][nats_connection_name] assigned to the NATS connection.
+
+			[nats_connection_name]: https://docs.nats.io/using-nats/developer/connecting/name
+			"""
+		required: true
+		type: string: examples: [
+			"vector",
+		]
 	}
 	decoding: {
 		description: "Configures how events are decoded from raw bytes."
@@ -131,7 +137,7 @@ base: components: sources: nats: configuration: {
 					syslog: """
 						Decodes the raw bytes as a Syslog message.
 
-						Will decode either as the [RFC 3164][rfc3164]-style format ("old" style) or the more modern
+						Decodes either as the [RFC 3164][rfc3164]-style format ("old" style) or the
 						[RFC 5424][rfc5424]-style format ("new" style, includes structured data).
 
 						[rfc3164]: https://www.ietf.org/rfc/rfc3164.txt
@@ -145,8 +151,8 @@ base: components: sources: nats: configuration: {
 		description: """
 			Framing configuration.
 
-			Framing deals with how events are separated when encoded in a raw byte form, where each event is
-			a "frame" that must be prefixed, or delimited, in a way that marks where an event begins and
+			Framing handles how events are separated when encoded in a raw byte form, where each event is
+			a frame that must be prefixed, or delimited, in a way that marks where an event begins and
 			ends within the byte stream.
 			"""
 		required: false
@@ -166,6 +172,14 @@ base: components: sources: nats: configuration: {
 																The maximum length of the byte buffer.
 
 																This length does *not* include the trailing delimiter.
+
+																By default, there is no maximum length enforced. If events are malformed, this can lead to
+																additional resource usage as events continue to be buffered in memory, and can potentially
+																lead to memory exhaustion in extreme cases.
+
+																If there is a risk of processing malformed data, such as logs with user-controlled input,
+																consider setting the maximum length to a reasonably large value as a safety net. This
+																ensures that processing is not actually unbounded.
 																"""
 						required: false
 						type: uint: {}
@@ -178,7 +192,7 @@ base: components: sources: nats: configuration: {
 				type: string: {
 					default: "bytes"
 					enum: {
-						bytes:               "Byte frames are passed through as-is according to the underlying I/O boundaries (e.g. split between messages or stream segments)."
+						bytes:               "Byte frames are passed through as-is according to the underlying I/O boundaries (for example, split between messages or stream segments)."
 						character_delimited: "Byte frames which are delimited by a chosen character."
 						length_delimited:    "Byte frames which are prefixed by an unsigned big-endian 32-bit integer indicating the length."
 						newline_delimited:   "Byte frames which are delimited by a newline character."
@@ -199,6 +213,14 @@ base: components: sources: nats: configuration: {
 						The maximum length of the byte buffer.
 
 						This length does *not* include the trailing delimiter.
+
+						By default, there is no maximum length enforced. If events are malformed, this can lead to
+						additional resource usage as events continue to be buffered in memory, and can potentially
+						lead to memory exhaustion in extreme cases.
+
+						If there is a risk of processing malformed data, such as logs with user-controlled input,
+						consider setting the maximum length to a reasonably large value as a safety net. This
+						ensures that processing is not actually unbounded.
 						"""
 					required: false
 					type: uint: {}
@@ -217,14 +239,18 @@ base: components: sources: nats: configuration: {
 		}
 	}
 	queue: {
-		description: "NATS Queue Group to join."
+		description: "The NATS queue group to join."
 		required:    false
 		type: string: {}
 	}
 	subject: {
-		description: "The NATS subject to pull messages from."
-		required:    true
-		type: string: {}
+		description: """
+			The NATS [subject][nats_subject] to pull messages from.
+
+			[nats_subject]: https://docs.nats.io/nats-concepts/subjects
+			"""
+		required: true
+		type: string: examples: ["foo", "time.us.east", "time.*.east", "time.>", ">"]
 	}
 	subject_key_field: {
 		description: "The `NATS` subject key."
@@ -239,8 +265,8 @@ base: components: sources: nats: configuration: {
 				description: """
 					Sets the list of supported ALPN protocols.
 
-					Declare the supported ALPN protocols, which are used during negotiation with peer. Prioritized in the order
-					they are defined.
+					Declare the supported ALPN protocols, which are used during negotiation with peer. They are prioritized in the order
+					that they are defined.
 					"""
 				required: false
 				type: array: items: type: string: examples: ["h2"]
@@ -268,7 +294,7 @@ base: components: sources: nats: configuration: {
 			}
 			enabled: {
 				description: """
-					Whether or not to require TLS for incoming/outgoing connections.
+					Whether or not to require TLS for incoming or outgoing connections.
 
 					When enabled and used for incoming connections, an identity certificate is also required. See `tls.crt_file` for
 					more information.
@@ -298,10 +324,10 @@ base: components: sources: nats: configuration: {
 				description: """
 					Enables certificate verification.
 
-					If enabled, certificates must be valid in terms of not being expired, as well as being issued by a trusted
-					issuer. This verification operates in a hierarchical manner, checking that not only the leaf certificate (the
-					certificate presented by the client/server) is valid, but also that the issuer of that certificate is valid, and
-					so on until reaching a root certificate.
+					If enabled, certificates must not be expired and must be issued by a trusted
+					issuer. This verification operates in a hierarchical manner, checking that the leaf certificate (the
+					certificate presented by the client/server) is not only valid, but that the issuer of that certificate is also valid, and
+					so on until the verification process reaches a root certificate.
 
 					Relevant for both incoming and outgoing connections.
 
@@ -330,9 +356,10 @@ base: components: sources: nats: configuration: {
 		description: """
 			The NATS URL to connect to.
 
-			The URL must take the form of `nats://server:port`.
+			The URL takes the form of `nats://server:port`.
+			If the port is not specified it defaults to 4222.
 			"""
 		required: true
-		type: string: {}
+		type: string: examples: ["nats://demo.nats.io", "nats://127.0.0.1:4242"]
 	}
 }

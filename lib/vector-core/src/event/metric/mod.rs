@@ -1,5 +1,9 @@
 #[cfg(feature = "vrl")]
 use std::convert::TryFrom;
+
+#[cfg(feature = "vrl")]
+use vrl::compiler::value::VrlValueConvert;
+
 use std::{
     convert::AsRef,
     fmt::{self, Display, Formatter},
@@ -9,8 +13,6 @@ use std::{
 use chrono::{DateTime, Utc};
 use vector_common::EventDataEq;
 use vector_config::configurable_component;
-#[cfg(feature = "vrl")]
-use vrl_lib::prelude::VrlValueConvert;
 
 use crate::{
     event::{
@@ -495,24 +497,23 @@ pub enum MetricKind {
 }
 
 #[cfg(feature = "vrl")]
-impl TryFrom<::value::Value> for MetricKind {
+impl TryFrom<vrl::value::Value> for MetricKind {
     type Error = String;
 
-    fn try_from(value: ::value::Value) -> Result<Self, Self::Error> {
+    fn try_from(value: vrl::value::Value) -> Result<Self, Self::Error> {
         let value = value.try_bytes().map_err(|e| e.to_string())?;
         match std::str::from_utf8(&value).map_err(|e| e.to_string())? {
             "incremental" => Ok(Self::Incremental),
             "absolute" => Ok(Self::Absolute),
             value => Err(format!(
-                "invalid metric kind {}, metric kind must be `absolute` or `incremental`",
-                value
+                "invalid metric kind {value}, metric kind must be `absolute` or `incremental`"
             )),
         }
     }
 }
 
 #[cfg(feature = "vrl")]
-impl From<MetricKind> for ::value::Value {
+impl From<MetricKind> for vrl::value::Value {
     fn from(kind: MetricKind) -> Self {
         match kind {
             MetricKind::Incremental => "incremental".into(),
@@ -640,14 +641,15 @@ pub fn samples_to_buckets(samples: &[Sample], buckets: &[f64]) -> (Vec<Bucket>, 
 mod test {
     use std::collections::BTreeSet;
 
-    use chrono::{offset::TimeZone, DateTime, Utc};
+    use chrono::{offset::TimeZone, DateTime, Timelike, Utc};
     use similar_asserts::assert_eq;
 
     use super::*;
 
     fn ts() -> DateTime<Utc> {
-        Utc.ymd(2018, 11, 14)
-            .and_hms_nano_opt(8, 9, 10, 11)
+        Utc.with_ymd_and_hms(2018, 11, 14, 8, 9, 10)
+            .single()
+            .and_then(|t| t.with_nanosecond(11))
             .expect("invalid timestamp")
     }
 

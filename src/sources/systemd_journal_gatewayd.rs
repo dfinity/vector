@@ -1,6 +1,7 @@
 //! Generalized HTTP client source.
 //! Calls an endpoint at an interval, decoding the HTTP responses into events.
 
+use crate::config::schema::Definition;
 use crate::internal_events::{JournaldCheckpointFileOpenError, StreamClosedError};
 use crate::sources::journald::{SharedCheckpointer, StatefulCheckpointer};
 use crate::SourceSender;
@@ -21,7 +22,7 @@ use std::time::Duration;
 use vector_common::internal_event::{error_stage, error_type, InternalEvent};
 use vector_common::shutdown::ShutdownSignal;
 use vector_config::configurable_component;
-use vector_core::config::{log_schema, DataType, LogNamespace, Output};
+use vector_core::config::{DataType, LogNamespace, SourceOutput};
 use vector_core::event::LogEvent;
 
 const CHECKPOINT_FILENAME: &str = "checkpoint.txt";
@@ -51,6 +52,7 @@ pub struct SystemdJournalGatewaydConfig {
 impl_generate_config_from_default!(SystemdJournalGatewaydConfig);
 
 #[async_trait::async_trait]
+#[typetag::serde(name = "systemd_journal_gatewayd")]
 impl SourceConfig for SystemdJournalGatewaydConfig {
     async fn build(&self, cx: SourceContext) -> crate::Result<sources::Source> {
         let data_dir = cx
@@ -74,8 +76,8 @@ impl SourceConfig for SystemdJournalGatewaydConfig {
         ))
     }
 
-    fn outputs(&self, _global_log_namespace: LogNamespace) -> Vec<Output> {
-        vec![Output::default(DataType::Log)]
+    fn outputs(&self, _global_log_namespace: LogNamespace) -> Vec<SourceOutput> {
+        vec![SourceOutput::new_logs(DataType::Log, Definition::any())]
     }
 
     fn can_acknowledge(&self) -> bool {
@@ -225,7 +227,7 @@ impl SystemdJournalGatewaydSource {
                 let datetime: DateTime<Utc> = DateTime::from_utc(naive, Utc);
 
                 let mut log = LogEvent::default();
-                log.insert(log_schema().timestamp_key(), datetime);
+                log.insert("timestamp", datetime);
                 log.insert("message", entry);
                 self.out
                     .send_event(log)
