@@ -9,12 +9,10 @@ use crate::{
     config::{SourceConfig, SourceContext},
     sources,
 };
-use chrono::{DateTime, NaiveDateTime, Utc};
 use hyper::client::HttpConnector;
 use hyper::header::{ACCEPT, RANGE};
 use hyper::Client;
 use metrics::counter;
-use serde_json::Value as JsonValue;
 use std::net::SocketAddr;
 use std::net::{AddrParseError, IpAddr};
 use std::path::PathBuf;
@@ -28,7 +26,6 @@ use vector_core::event::LogEvent;
 const CHECKPOINT_FILENAME: &str = "checkpoint.txt";
 const CURSOR: &str = "__CURSOR";
 const BATCH_SIZE: u64 = 32;
-const REALTIMESTAMP: &str = "__REALTIME_TIMESTAMP";
 
 /// Configuration for the `systemd_journal_gatewayd` source.
 #[configurable_component(source("systemd_journal_gatewayd"))]
@@ -141,7 +138,7 @@ impl SystemdJournalGatewaydSource {
             let req = hyper::Request::builder()
                 .method(hyper::Method::GET)
                 .uri(url)
-                .header(ACCEPT, "application/json".to_string())
+                .header(ACCEPT, "application/vnd.fdo.journal".to_string())
                 .header(
                     RANGE,
                     format!(
@@ -184,22 +181,36 @@ impl SystemdJournalGatewaydSource {
 
             let log_entries = String::from_utf8(body_bytes.to_vec())
                 .map_err(|error| emit!(SystemdJournalGatewaydJsonError { error }))?
-                .split('\n')
+                .split("\n\n")
                 .into_iter()
+                .filter(|f| !f.is_empty())
                 .map(|f| f.to_string())
                 .collect::<Vec<String>>();
 
             for entry in log_entries {
-                let record = match serde_json::from_str::<JsonValue>(entry.as_str()) {
-                    Ok(record) => record,
-                    Err(_) => {
-                        if !entry.is_empty() {
-                            warn!("Couldn't parse log entry. Line was: \n{}", entry);
+                let mut log = LogEvent::default();
+
+                entry
+                    .split('\n')
+                    .into_iter()
+                    .for_each(|line| match line.split_once('=') {
+                        None => (),
+                        Some((name, value)) => {
+                            log.insert(name, value);
+                            ()
                         }
+                    });
+
+                let current_cursor = match log.get(CURSOR) {
+                    None => {
+                        warn!(
+                            "Log line without cursor... Skipping..., line was: {}",
+                            entry
+                        );
                         continue;
                     }
+                    Some(cursor) => cursor.to_string().replace('\"', ""),
                 };
-                let current_cursor = record.get(CURSOR).unwrap().to_string().replace('\"', "");
 
                 // Escaping duplicated logs
                 if current_cursor == last_cursor {
@@ -207,28 +218,6 @@ impl SystemdJournalGatewaydSource {
                 }
                 last_cursor = current_cursor;
 
-                let timestamp = record
-                    .get(REALTIMESTAMP)
-                    .unwrap()
-                    .to_string()
-                    .replace('\"', "");
-
-                let secs = timestamp[..timestamp.len() - 6].parse();
-                let microsecs = timestamp[timestamp.len() - 6..].parse::<u32>();
-                let parsed = match (secs, microsecs) {
-                    (Ok(s), Ok(us)) => NaiveDateTime::from_timestamp_opt(s, us * 1000),
-                    _ => None,
-                };
-
-                let naive = match parsed {
-                    Some(date) => date,
-                    None => Utc::now().naive_utc(),
-                };
-                let datetime: DateTime<Utc> = DateTime::from_utc(naive, Utc);
-
-                let mut log = LogEvent::default();
-                log.insert("timestamp", datetime);
-                log.insert("message", entry);
                 self.out
                     .send_event(log)
                     .await
