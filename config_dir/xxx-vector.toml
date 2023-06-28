@@ -3,6 +3,11 @@
 # endpoint = "https://7hi6i-7iaaa-aaaaq-aaaqq-cai.raw.ic0.app"
 # data_dir = "logs"
 
+[sources.logs]
+type = "systemd_journal_gatewayd"
+endpoint = "2a00:fa0:3:0:6801:6bff:fe5b:c49a"
+data_dir = "logs"
+
 [api]
 enabled = true
 address = "0.0.0.0:8686"
@@ -12,7 +17,7 @@ type = "internal_metrics"
 
 [sinks.out_logs]
 type = "file"
-inputs = ["transform_*"]
+inputs = ["logs*"]
 compression = "none"
 path = "logs/logs.log"
     [sinks.out_logs.encoding]
