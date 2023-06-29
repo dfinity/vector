@@ -176,11 +176,16 @@ impl SystemdJournalGatewaydSource {
             let body_bytes = tokio::select! {
                 biased;
                 _ = &mut shutdown => break,
-                result = hyper::body::to_bytes(body) => result.map_err(|error| emit!(SystemdJournalGatewaydReadError { error }))?
+                result = hyper::body::to_bytes(body) => match result {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        emit!(SystemdJournalGatewaydReadError { error });
+                        continue;
+                    }
+                }
             };
 
-            let log_entries = String::from_utf8(body_bytes.to_vec())
-                .map_err(|error| emit!(SystemdJournalGatewaydJsonError { error }))?
+            let log_entries = String::from_utf8_lossy(&body_bytes)
                 .split("\n\n")
                 .into_iter()
                 .filter(|f| !f.is_empty())
