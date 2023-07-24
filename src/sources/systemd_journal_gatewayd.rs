@@ -184,8 +184,7 @@ impl SystemdJournalGatewaydSource {
                     }
                 }
             };
-            let logs_str = String::from_utf8(body_bytes.into_iter().collect())
-                .unwrap()
+            let logs_str = String::from_utf8_lossy(&body_bytes)
                 .replace("unconfined\n\n", "")
                 .replace("_SELINUX_CONTEXT\n", "");
 
