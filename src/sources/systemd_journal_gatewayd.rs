@@ -184,8 +184,12 @@ impl SystemdJournalGatewaydSource {
                     }
                 }
             };
+            let logs_str = String::from_utf8(body_bytes.into_iter().collect())
+                .unwrap()
+                .replace("unconfined\n\n", "")
+                .replace("_SELINUX_CONTEXT\n", "");
 
-            let log_entries = String::from_utf8_lossy(&body_bytes)
+            let log_entries = logs_str
                 .split("\n\n")
                 .into_iter()
                 .filter(|f| !f.is_empty())
@@ -208,7 +212,7 @@ impl SystemdJournalGatewaydSource {
 
                 let current_cursor = match log.get(CURSOR) {
                     None => {
-                        warn!(
+                        debug!(
                             "Log line without cursor... Skipping..., line was: {}",
                             entry
                         );
