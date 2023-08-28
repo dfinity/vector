@@ -26,6 +26,7 @@ use vector_core::event::LogEvent;
 const CHECKPOINT_FILENAME: &str = "checkpoint.txt";
 const CURSOR: &str = "__CURSOR";
 const BATCH_SIZE: u64 = 32;
+const DEFAULT_PORT: u16 = 19531;
 
 /// Configuration for the `systemd_journal_gatewayd` source.
 #[configurable_component(source("systemd_journal_gatewayd"))]
@@ -34,6 +35,11 @@ pub struct SystemdJournalGatewaydConfig {
     /// Endpoint to collect events from. The full path must be specified.
     /// Example: "::1"
     pub endpoint: String,
+
+    /// Port to collect events from.
+    ///
+    /// By default 19531
+    pub port: Option<u16>,
 
     /// The directory used to persist file checkpoint positions.
     ///
@@ -58,12 +64,15 @@ impl SourceConfig for SystemdJournalGatewaydConfig {
 
         let batch_size = self.batch_size.unwrap_or(BATCH_SIZE);
 
+        let port = self.port.unwrap_or(DEFAULT_PORT);
+
         let mut checkpoint_path = data_dir;
         checkpoint_path.push(CHECKPOINT_FILENAME);
 
         Ok(Box::pin(
             SystemdJournalGatewaydSource {
                 endpoint: self.endpoint.clone(),
+                port,
                 out: cx.out,
                 checkpoint_path,
                 batch_size,
@@ -86,6 +95,7 @@ impl SourceConfig for SystemdJournalGatewaydConfig {
 #[derive(Clone)]
 struct SystemdJournalGatewaydSource {
     endpoint: String,
+    port: u16,
     out: SourceSender,
     checkpoint_path: PathBuf,
     batch_size: u64,
@@ -123,7 +133,7 @@ impl SystemdJournalGatewaydSource {
         let parsed_ip = self.endpoint.parse().map_err(|error| {
             emit!(SystemdJournalGatewaydParseIpError { error });
         })?;
-        let socket_addr = SocketAddr::new(IpAddr::V6(parsed_ip), 19531);
+        let socket_addr = SocketAddr::new(IpAddr::V6(parsed_ip), self.port);
 
         let cursor = checkpointer.lock().await.cursor.clone();
 
@@ -190,7 +200,6 @@ impl SystemdJournalGatewaydSource {
 
             let log_entries = logs_str
                 .split("\n\n")
-                .into_iter()
                 .filter(|f| !f.is_empty())
                 .map(|f| f.to_string())
                 .collect::<Vec<String>>();
@@ -200,12 +209,10 @@ impl SystemdJournalGatewaydSource {
 
                 entry
                     .split('\n')
-                    .into_iter()
                     .for_each(|line| match line.split_once('=') {
                         None => (),
                         Some((name, value)) => {
                             log.insert(name, value);
-                            ()
                         }
                     });
 
