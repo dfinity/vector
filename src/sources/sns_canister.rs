@@ -20,9 +20,10 @@ use vector_common::internal_event::{error_stage, error_type, InternalEvent};
 use vector_common::shutdown::ShutdownSignal;
 use vector_config::configurable_component;
 use vector_core::config::proxy::ProxyConfig;
-use vector_core::config::{log_schema, DataType, LogNamespace, SourceOutput};
+use vector_core::config::{DataType, LogNamespace, SourceOutput};
 use vector_core::event::LogEvent;
 use vector_core::tls::{TlsConfig, TlsSettings};
+use vrl::event_path;
 
 const CHECKPOINT_FILENAME: &str = "checkpoint.txt";
 const BATCH_SIZE: u64 = 32;
@@ -136,7 +137,7 @@ impl SnsCanisterSource {
                 _ = &mut shutdown => break,
                 _ = tokio::time::sleep(Duration::from_secs(self.sleep)) => {},
             }
-            let url = match last_cursor == "".to_string() {
+            let url = match last_cursor == *"" {
                 true => format!("{}/logs", self.endpoint),
                 false => format!("{}/logs?time={}", self.endpoint, last_cursor),
             };
@@ -192,15 +193,15 @@ impl SnsCanisterSource {
                     }
                 };
 
-            if sns_logs.entries.len() == 0 {
+            if sns_logs.entries.is_empty() {
                 continue;
             }
 
             for log in &sns_logs.entries {
                 self.out
-                    .send_event(log.into_event())
+                    .send_event(std::convert::Into::<LogEvent>::into(log))
                     .await
-                    .map_err(|error| emit!(StreamClosedError { error, count: 1 }))?
+                    .map_err(|_error| emit!(StreamClosedError { count: 1 }))?
             }
 
             last_cursor = match sns_logs.last() {
@@ -239,14 +240,14 @@ struct SnsLogRecord {
     message: String,
 }
 
-impl SnsLogRecord {
-    fn into_event(&self) -> LogEvent {
+impl From<&SnsLogRecord> for LogEvent {
+    fn from(value: &SnsLogRecord) -> Self {
         let mut log_event = LogEvent::default();
-        log_event.insert("timestamp", self.timestamp.clone());
-        log_event.insert(log_schema().message_key(), self.message.clone());
-        log_event.insert("severity", self.severity.clone());
-        log_event.insert("file", self.file.clone());
-        log_event.insert("line", self.line);
+        log_event.insert(event_path!("timestamp"), value.timestamp);
+        log_event.insert(event_path!("message"), value.message.clone());
+        log_event.insert(event_path!("severity"), value.severity.clone());
+        log_event.insert(event_path!("file"), value.file.clone());
+        log_event.insert(event_path!("line"), value.line);
 
         log_event
     }

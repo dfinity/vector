@@ -22,6 +22,7 @@ use vector_common::shutdown::ShutdownSignal;
 use vector_config::configurable_component;
 use vector_core::config::{DataType, LogNamespace, SourceOutput};
 use vector_core::event::LogEvent;
+use vrl::event_path;
 
 const CHECKPOINT_FILENAME: &str = "checkpoint.txt";
 const CURSOR: &str = "__CURSOR";
@@ -212,11 +213,11 @@ impl SystemdJournalGatewaydSource {
                     .for_each(|line| match line.split_once('=') {
                         None => (),
                         Some((name, value)) => {
-                            log.insert(name, value);
+                            log.insert(event_path!(name), value);
                         }
                     });
 
-                let current_cursor = match log.get(CURSOR) {
+                let current_cursor = match log.get(event_path!(CURSOR)) {
                     None => {
                         debug!(
                             "Log line without cursor... Skipping..., line was: {}",
@@ -236,7 +237,7 @@ impl SystemdJournalGatewaydSource {
                 self.out
                     .send_event(log)
                     .await
-                    .map_err(|error| emit!(StreamClosedError { error, count: 1 }))?;
+                    .map_err(|_error| emit!(StreamClosedError { count: 1 }))?;
             }
             batch -= 1;
             if batch == 0 {
