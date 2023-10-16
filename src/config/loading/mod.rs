@@ -69,17 +69,15 @@ pub fn merge_path_lists(
 /// Expand a list of paths (potentially containing glob patterns) into real
 /// config paths, replacing it with the default paths when empty.
 pub fn process_paths(config_paths: &[ConfigPath]) -> Option<Vec<ConfigPath>> {
-    let default_paths = default_config_paths();
-
     let starting_paths = if !config_paths.is_empty() {
-        config_paths
+        config_paths.to_owned()
     } else {
-        &default_paths
+        default_config_paths()
     };
 
     let mut paths = Vec::new();
 
-    for config_path in starting_paths {
+    for config_path in &starting_paths {
         let config_pattern: &PathBuf = config_path.into();
 
         let matches: Vec<PathBuf> = match glob(config_pattern.to_str().expect("No ability to glob"))
@@ -305,22 +303,24 @@ where
 }
 
 #[cfg(not(windows))]
-fn default_config_paths() -> Vec<ConfigPath> {
-    vec![ConfigPath::File(
-        "/etc/vector/vector.toml".into(),
-        Some(Format::Toml),
-    )]
+fn default_path() -> PathBuf {
+    "/etc/vector/vector.yaml".into()
 }
 
 #[cfg(windows)]
-fn default_config_paths() -> Vec<ConfigPath> {
+fn default_path() -> PathBuf {
     let program_files =
         std::env::var("ProgramFiles").expect("%ProgramFiles% environment variable must be defined");
-    let config_path = format!("{}\\Vector\\config\\vector.toml", program_files);
-    vec![ConfigPath::File(
-        PathBuf::from(config_path),
-        Some(Format::Toml),
-    )]
+    format!("{}\\Vector\\config\\vector.yaml", program_files).into()
+}
+
+fn default_config_paths() -> Vec<ConfigPath> {
+    #[cfg(not(windows))]
+    let default_path = default_path();
+    #[cfg(windows)]
+    let default_path = default_path();
+
+    vec![ConfigPath::File(default_path, Some(Format::Yaml))]
 }
 
 #[cfg(all(

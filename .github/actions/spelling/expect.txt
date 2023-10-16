@@ -1,9 +1,7 @@
 abcd
 abcdefghijklm
 abcdefghijklmnopqrstuvwxyzand
-abced
 abortable
-acb
 ack'ing
 acking
 Acq
@@ -37,10 +35,8 @@ ARNOTAREALIDD
 arshiyasolei
 asdf
 asdfasdf
-ASMS
 assertverify
 Asterix
-asynk
 atag
 atx
 aty
@@ -57,6 +53,7 @@ autodiscovered
 autodiscovery
 autogen
 autoinstalling
+AUTOPULL
 autospawn
 autospawning
 autotools
@@ -140,7 +137,6 @@ casttype
 castvalue
 cbe
 CBOR
-cbs
 cddl
 cdeab
 cdylib
@@ -190,6 +186,7 @@ composability
 concating
 concats
 condrestart
+conffiles
 configkey
 configmap
 confl
@@ -201,6 +198,7 @@ copypasta'd
 copypasted
 copytruncate
 corechecks
+corepack
 could've
 counteraaaaaaaaaaa
 cpf
@@ -224,6 +222,7 @@ cwl
 Dailywarehousing
 daschl
 dashmap
+datadir
 dataflows
 datafuselabs
 datasources
@@ -234,6 +233,7 @@ datname
 dbkind
 dbreader
 DBserver
+DCMAKE
 ddagent
 ddev
 ddmetric
@@ -287,6 +287,7 @@ Doop
 downcasted
 droptest
 dsl
+dsmith
 dstat
 dstport
 dtype
@@ -303,7 +304,6 @@ ebfcee
 edenhill
 edns
 eeyun
-efg
 efgh
 Elhage
 emca
@@ -324,7 +324,6 @@ ENVARS
 envsubst
 EOIG
 EOL'ed
-Erfxl
 Err'ing
 errorf
 Errorsfor
@@ -351,6 +350,7 @@ exitcodes
 exprhere
 extendedstatus
 extendee
+extglob
 extr
 extralight
 extrepo
@@ -463,12 +463,12 @@ gty
 Guangzhou
 guenter
 gzip'ed
+hadolint
 halfsies
 hannes
 Hashbang
 hashbrown
 hashindex
-hashlink
 hashring
 hashset
 hashsum
@@ -526,6 +526,7 @@ ingesters
 ingestor
 initdb
 initech
+installdeb
 Instrumentable
 interpolatedstring
 interpretervm
@@ -573,7 +574,6 @@ kernelmode
 keybase
 keyclock
 keyid
-keypair
 keyxxxxx
 khvzak
 kib
@@ -743,6 +743,7 @@ noauth
 nocapture
 nochild
 nodebuginfo
+nodistro
 nofield
 nofree
 nomac
@@ -777,6 +778,7 @@ NQTP
 nresamples
 nullishness
 numbackends
+oahd
 oap
 OKD
 omfwd
@@ -820,6 +822,7 @@ pathgen
 peekable
 PEMS
 pgmajfault
+pgrep
 PII
 Pitbull
 pkc
@@ -837,6 +840,7 @@ posttrunc
 prebuild
 precpu
 preds
+prefs
 preinst
 preread
 prereqs
@@ -872,6 +876,7 @@ qwe
 raboof
 rande
 RANDFILE
+ratatui
 rawconfig
 rawstring
 rdkafka
@@ -984,6 +989,7 @@ skywalking
 slashin
 slf
 slideover
+slugified
 smallvec
 smartphone
 Smol
@@ -1052,7 +1058,6 @@ supertrait
 suser
 sustainability
 svalue
-Sya
 sysfs
 sysinit
 syslogng
@@ -1070,6 +1075,7 @@ Takeaways
 targetgroup
 tarpit
 tcmalloc
+teconsent
 telecom
 templatable
 templateable
@@ -1113,7 +1119,6 @@ Tomola
 tonydanza
 toolbars
 toolchains
-TOOLSDIRECTORY
 toolset
 toor
 topdir
@@ -1130,6 +1135,8 @@ tripwires
 Trivago
 trivy
 Troutwine
+trustarc
+truste
 TRUSTSTORE
 TSDB
 Tsvg
@@ -1168,6 +1175,7 @@ userpass
 uucp
 UVY
 uwtable
+Uyuni
 valfoo
 validpaths
 Varda
@@ -1200,6 +1208,7 @@ watchexec
 watchlogs
 wayfor
 webgraphviz
+webpki
 webservers
 websites
 weee
@@ -1219,7 +1228,6 @@ wktpointer
 wmem
 woooooow
 woothee
-wor
 wordlist
 workdir
 workstreams
