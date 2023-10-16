@@ -44,8 +44,10 @@ Collectd
 Comcast
 Consolas
 Coolpad
+BADDCAFE
 DEBHELPER
 Danew
+Dfinity
 dkr
 Dockerfiles
 DOOV
@@ -55,6 +57,7 @@ Evercoss
 Explay
 FAQs
 FDO
+fdo
 FQDNs
 Fabro
 Figma
@@ -63,6 +66,7 @@ Foto
 Freescale
 Galapad
 Garmin
+Gatewayd
 Geeksphone
 Gfive
 Ghemawat
@@ -282,6 +286,7 @@ firefox
 fluentbit
 fluentd
 fuzzers
+gatewayd
 gce
 gcloud
 gcp
@@ -358,6 +363,7 @@ macbook
 maxmind
 maxminddb
 messagebird
+messense
 minikube
 minimalistic
 minio

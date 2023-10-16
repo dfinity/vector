@@ -16,6 +16,8 @@ node_modules
 tests/data/wasm/*/target
 heaptrack.*
 massif.*
+logss
+config_dir
 
 # tilt
 tilt_modules/
