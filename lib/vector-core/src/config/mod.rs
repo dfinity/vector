@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 mod global_options;
 mod log_schema;
 pub mod output_id;
-pub mod proxy;
+//pub mod proxy;
 mod telemetry;
 
 use crate::event::LogEvent;

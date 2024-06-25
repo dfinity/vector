@@ -19,7 +19,7 @@ pub use vector_config::impl_generate_config_from_default;
 pub use vector_core::compile_vrl;
 pub use vector_core::{
     buckets, default_data_dir, emit, event, fanout, ipallowlist, metric_tags, metrics, partition,
-    quantiles, register, samples, schema, serde, sink, source, tcp, tls, transform, update_counter,
+    quantiles, register, samples, schema, serde, sink, source, tcp, transform, update_counter,
     EstimatedJsonEncodedSizeOf,
 };
 pub use vector_lookup as lookup;
@@ -28,7 +28,7 @@ pub use vector_stream as stream;
 pub mod config {
     pub use vector_common::config::ComponentKey;
     pub use vector_core::config::{
-        clone_input_definitions, init_log_schema, init_telemetry, log_schema, proxy, telemetry,
+        clone_input_definitions, init_log_schema, init_telemetry, log_schema, telemetry,
         AcknowledgementsConfig, DataType, GlobalOptions, Input, LegacyKey, LogNamespace, LogSchema,
         OutputId, SourceAcknowledgementsConfig, SourceOutput, Tags, Telemetry, TransformOutput,
         MEMORY_BUFFER_DEFAULT_MAX_EVENTS,
