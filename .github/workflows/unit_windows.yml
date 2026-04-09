@@ -11,12 +11,12 @@ jobs:
     steps:
       - name: (PR comment) Get PR branch
         if: ${{ github.event_name == 'issue_comment' }}
-        uses: xt0rted/pull-request-comment-branch@v2
+        uses: xt0rted/pull-request-comment-branch@d97294d304604fa98a2600a6e2f916a84b596dc7 # v2
         id: comment-branch
 
       - name: (PR comment) Set latest commit status as pending
         if: ${{ github.event_name == 'issue_comment' }}
-        uses: myrotvorets/set-commit-status-action@v2.0.1
+        uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
         with:
           sha: ${{ steps.comment-branch.outputs.head_sha }}
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -25,19 +25,19 @@ jobs:
 
       - name: (PR comment) Checkout PR branch
         if: ${{ github.event_name == 'issue_comment' }}
-        uses: actions/checkout@v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
         with:
           ref: ${{ steps.comment-branch.outputs.head_ref }}
 
       - name: Checkout branch
         if: ${{ github.event_name != 'issue_comment' }}
-        uses: actions/checkout@v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       - run: .\scripts\environment\bootstrap-windows-2019.ps1
       - run: make test
 
       - name: (PR comment) Set latest commit status as ${{ job.status }}
-        uses: myrotvorets/set-commit-status-action@v2.0.1
+        uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
         if: always() && github.event_name == 'issue_comment'
         with:
           sha: ${{ steps.comment-branch.outputs.head_sha }}
