@@ -140,9 +140,9 @@ jobs:
       install: ${{ steps.filter.outputs.install }}
       k8s: ${{ steps.filter.outputs.k8s }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
-    - uses: dorny/paths-filter@v3
+    - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
       id: filter
       with:
         base: ${{ inputs.base_ref }}
@@ -236,7 +236,7 @@ jobs:
       splunk: ${{ steps.filter.outputs.splunk }}
       webhdfs: ${{ steps.filter.outputs.webhdfs }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       # creates a yaml file that contains the filters for each integration,
       # extracted from the output of the `vdev int ci-paths` command, which
@@ -244,7 +244,7 @@ jobs:
       - name: Create filter rules for integrations
         run: cargo vdev int ci-paths > int_test_filters.yaml
 
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         with:
           base: ${{ inputs.base_ref }}
@@ -261,7 +261,7 @@ jobs:
       datadog-logs: ${{ steps.filter.outputs.datadog-logs }}
       datadog-metrics: ${{ steps.filter.outputs.datadog-metrics }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       # creates a yaml file that contains the filters for each test,
       # extracted from the output of the `vdev int ci-paths` command, which
@@ -269,7 +269,7 @@ jobs:
       - name: Create filter rules for e2e tests
         run: cargo vdev e2e ci-paths > int_test_filters.yaml
 
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         with:
           base: ${{ inputs.base_ref }}

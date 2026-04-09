@@ -18,12 +18,12 @@ jobs:
     steps:
       - name: (PR comment) Get PR branch
         if: ${{ github.event_name == 'issue_comment' }}
-        uses: xt0rted/pull-request-comment-branch@v2
+        uses: xt0rted/pull-request-comment-branch@d97294d304604fa98a2600a6e2f916a84b596dc7 # v2
         id: comment-branch
 
       - name: (PR comment) Set latest commit status as pending
         if: ${{ github.event_name == 'issue_comment' }}
-        uses: myrotvorets/set-commit-status-action@v2.0.1
+        uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
         with:
           sha: ${{ steps.comment-branch.outputs.head_sha }}
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -32,20 +32,20 @@ jobs:
 
       - name: (PR comment) Checkout PR branch
         if: ${{ github.event_name == 'issue_comment' }}
-        uses: actions/checkout@v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
         with:
           ref: ${{ steps.comment-branch.outputs.head_ref }}
 
       - name: Checkout branch
         if: ${{ github.event_name != 'issue_comment' }}
-        uses: actions/checkout@v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3.0.0
+        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.3.0
+        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
       - name: Login to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         if: github.ref == 'refs/heads/master'
         with:
           username: ${{ secrets.CI_DOCKER_USERNAME }}
@@ -64,7 +64,7 @@ jobs:
             org.opencontainers.image.title=Vector development environment
             org.opencontainers.image.url=https://github.com/vectordotdev/vector
       - name: Build and push
-        uses: docker/build-push-action@v5.4.0
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
         with:
           context: .
           file: ./scripts/environment/Dockerfile
@@ -73,7 +73,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: (PR comment) Set latest commit status as ${{ job.status }}
-        uses: myrotvorets/set-commit-status-action@v2.0.1
+        uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
         if: always() && github.event_name == 'issue_comment'
         with:
           sha: ${{ steps.comment-branch.outputs.head_sha }}

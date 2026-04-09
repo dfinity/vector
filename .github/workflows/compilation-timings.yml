@@ -15,8 +15,8 @@ jobs:
     name: "Release Build (optimized)"
     runs-on: ubuntu-20.04-8core
     steps:
-      - uses: colpal/actions-clean@v1
-      - uses: actions/checkout@v3
+      - uses: colpal/actions-clean@36e6ca1abd35efe61cb60f912bd7837f67887c8a # v1.1.1
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
       - run: sudo -E bash scripts/environment/bootstrap-ubuntu-20.04.sh
       - run: bash scripts/environment/prepare.sh
       - run: cargo clean
@@ -31,8 +31,8 @@ jobs:
       # with full LTO / single codegen unit.
       PROFILE: debug
     steps:
-      - uses: colpal/actions-clean@v1
-      - uses: actions/checkout@v3
+      - uses: colpal/actions-clean@36e6ca1abd35efe61cb60f912bd7837f67887c8a # v1.1.1
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
       - run: sudo -E bash scripts/environment/bootstrap-ubuntu-20.04.sh
       - run: bash scripts/environment/prepare.sh
       - run: cargo clean
@@ -42,8 +42,8 @@ jobs:
     name: "Debug Build"
     runs-on: ubuntu-20.04-8core
     steps:
-      - uses: colpal/actions-clean@v1
-      - uses: actions/checkout@v3
+      - uses: colpal/actions-clean@36e6ca1abd35efe61cb60f912bd7837f67887c8a # v1.1.1
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
       - run: sudo -E bash scripts/environment/bootstrap-ubuntu-20.04.sh
       - run: bash scripts/environment/prepare.sh
       - run: cargo clean
@@ -53,8 +53,8 @@ jobs:
     name: "Debug Rebuild"
     runs-on: ubuntu-20.04-8core
     steps:
-      - uses: colpal/actions-clean@v1
-      - uses: actions/checkout@v3
+      - uses: colpal/actions-clean@36e6ca1abd35efe61cb60f912bd7837f67887c8a # v1.1.1
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
       - run: sudo -E bash scripts/environment/bootstrap-ubuntu-20.04.sh
       - run: bash scripts/environment/prepare.sh
       - run: cargo clean
@@ -66,8 +66,8 @@ jobs:
     name: "Cargo Check"
     runs-on: ubuntu-20.04-8core
     steps:
-      - uses: colpal/actions-clean@v1
-      - uses: actions/checkout@v3
+      - uses: colpal/actions-clean@36e6ca1abd35efe61cb60f912bd7837f67887c8a # v1.1.1
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
       - run: sudo -E bash scripts/environment/bootstrap-ubuntu-20.04.sh
       - run: bash scripts/environment/prepare.sh
       - run: cargo clean

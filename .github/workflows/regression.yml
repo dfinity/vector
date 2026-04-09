@@ -53,12 +53,12 @@ jobs:
       source_changed: ${{ steps.filter.outputs.SOURCE_CHANGED }}
       comment_valid: ${{ steps.comment.outputs.isTeamMember }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
     - name: Collect file changes
       id: changes
       if: github.event_name == 'merge_group'
-      uses: dorny/paths-filter@v3
+      uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
       with:
         base: ${{ github.event.merge_group.base_ref }}
         ref: ${{ github.event.merge_group.head_ref }}
@@ -123,7 +123,7 @@ jobs:
 
       smp-version: ${{ steps.experimental-meta.outputs.SMP_CRATE_VERSION }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 1000
 
@@ -229,12 +229,12 @@ jobs:
 
       - name: (PR comment) Get PR branch
         if: ${{ github.event_name == 'issue_comment' }}
-        uses: xt0rted/pull-request-comment-branch@v2
+        uses: xt0rted/pull-request-comment-branch@d97294d304604fa98a2600a6e2f916a84b596dc7 # v2
         id: comment-branch
 
       - name: (PR comment) Set latest commit status as pending
         if: ${{ github.event_name == 'issue_comment' }}
-        uses: myrotvorets/set-commit-status-action@v2.0.1
+        uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
         with:
           sha: ${{ steps.pr-metadata-comment.outputs.COMPARISON_SHA }}
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -251,21 +251,21 @@ jobs:
     needs:
       - compute-metadata
     steps:
-      - uses: colpal/actions-clean@v1
+      - uses: colpal/actions-clean@36e6ca1abd35efe61cb60f912bd7837f67887c8a # v1.1.1
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
         with:
           ref: ${{ needs.compute-metadata.outputs.baseline-sha }}
           path: baseline-vector
 
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v3.3.0
+        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
 
       - name: Build 'vector' target image
-        uses: docker/build-push-action@v5.4.0
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
         with:
           context: baseline-vector/
           cache-from: type=gha
@@ -277,7 +277,7 @@ jobs:
             vector:${{ needs.compute-metadata.outputs.baseline-tag }}
 
       - name: Upload image as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@ff15f0306b3f739f7b6fd43fb5d26cd321bd4de5 # v3.2.1
         with:
           name: baseline-image
           path: "${{ runner.temp }}/baseline-image.tar"
@@ -289,21 +289,21 @@ jobs:
     needs:
       - compute-metadata
     steps:
-      - uses: colpal/actions-clean@v1
+      - uses: colpal/actions-clean@36e6ca1abd35efe61cb60f912bd7837f67887c8a # v1.1.1
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
         with:
           ref: ${{ needs.compute-metadata.outputs.comparison-sha }}
           path: comparison-vector
 
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v3.3.0
+        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
 
       - name: Build 'vector' target image
-        uses: docker/build-push-action@v5.4.0
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
         with:
           context: comparison-vector/
           cache-from: type=gha
@@ -315,7 +315,7 @@ jobs:
             vector:${{ needs.compute-metadata.outputs.comparison-tag }}
 
       - name: Upload image as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@ff15f0306b3f739f7b6fd43fb5d26cd321bd4de5 # v3.2.1
         with:
           name: comparison-image
           path: "${{ runner.temp }}/comparison-image.tar"
@@ -328,7 +328,7 @@ jobs:
       - compute-metadata
     steps:
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4.0.2
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-access-key-id: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_SECRET_ACCESS_KEY }}
@@ -352,7 +352,7 @@ jobs:
       - build-baseline
     steps:
       - name: 'Download baseline image'
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v3.0.2
         with:
           name: baseline-image
 
@@ -361,7 +361,7 @@ jobs:
           docker load --input baseline-image.tar
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4.0.2
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-access-key-id: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_SECRET_ACCESS_KEY }}
@@ -369,10 +369,10 @@ jobs:
 
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@f2e9fc6c2b355c1890b65e6f6f0e2ac3e6e22f78 # v2.1.2
 
       - name: Docker Login to ECR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ${{ steps.login-ecr.outputs.registry }}
 
@@ -391,7 +391,7 @@ jobs:
       - build-comparison
     steps:
       - name: 'Download comparison image'
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v3.0.2
         with:
           name: comparison-image
 
@@ -400,7 +400,7 @@ jobs:
           docker load --input comparison-image.tar
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4.0.2
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-access-key-id: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_SECRET_ACCESS_KEY }}
@@ -408,10 +408,10 @@ jobs:
 
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@f2e9fc6c2b355c1890b65e6f6f0e2ac3e6e22f78 # v2.1.2
 
       - name: Docker Login to ECR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ${{ steps.login-ecr.outputs.registry }}
 
@@ -442,12 +442,12 @@ jobs:
             -f context='Regression Detection Suite / submission' \
             -f target_url=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
         with:
           ref: ${{ needs.compute-metadata.outputs.comparison-sha }}
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4.0.2
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-access-key-id: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_SECRET_ACCESS_KEY }}
@@ -455,7 +455,7 @@ jobs:
 
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@f2e9fc6c2b355c1890b65e6f6f0e2ac3e6e22f78 # v2.1.2
 
       - name: Download SMP binary
         run: |
@@ -475,7 +475,7 @@ jobs:
             --target-config-dir ${{ github.workspace }}/regression/ \
             --submission-metadata ${{ runner.temp }}/submission-metadata
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@ff15f0306b3f739f7b6fd43fb5d26cd321bd4de5 # v3.2.1
         with:
           name: vector-submission-metadata
           path: ${{ runner.temp }}/submission-metadata
@@ -555,10 +555,10 @@ jobs:
       - submit-job
       - compute-metadata
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4.0.2
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-access-key-id: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_SECRET_ACCESS_KEY }}
@@ -569,7 +569,7 @@ jobs:
           aws s3 cp s3://smp-cli-releases/v${{ needs.compute-metadata.outputs.smp-version }}/x86_64-unknown-linux-gnu/smp ${{ runner.temp }}/bin/smp
 
       - name: Download submission metadata
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v3.0.2
         with:
           name: vector-submission-metadata
           path: ${{ runner.temp }}/
@@ -645,12 +645,12 @@ jobs:
             -f context='Regression Detection Suite / analyze-experiment' \
             -f target_url=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
         with:
           ref: ${{ needs.compute-metadata.outputs.comparison-sha }}
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4.0.2
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-access-key-id: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.SINGLE_MACHINE_PERFORMANCE_BOT_SECRET_ACCESS_KEY }}
@@ -661,7 +661,7 @@ jobs:
           aws s3 cp s3://smp-cli-releases/v${{ needs.compute-metadata.outputs.smp-version }}/x86_64-unknown-linux-gnu/smp ${{ runner.temp }}/bin/smp
 
       - name: Download submission metadata
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v3.0.2
         with:
           name: vector-submission-metadata
           path: ${{ runner.temp }}/
@@ -678,19 +678,19 @@ jobs:
 
       - name: Read regression report
         id: read-analysis
-        uses: juliangruber/read-file-action@v1
+        uses: juliangruber/read-file-action@271ff311a4947af354c6abcd696a306553b9ec18 # v1.1.8
         with:
           path: ${{ runner.temp }}/outputs/report.md
 
       - name: Post report to PR
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4
         with:
           issue-number: ${{ needs.compute-metadata.outputs.pr-number }}
           edit-mode: append
           body: ${{ steps.read-analysis.outputs.content }}
 
       - name: Upload regression report to artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@ff15f0306b3f739f7b6fd43fb5d26cd321bd4de5 # v3.2.1
         with:
           name: capture-artifacts
           path: ${{ runner.temp }}/outputs/*
@@ -758,12 +758,12 @@ jobs:
     steps:
       - name: (PR comment) Get PR branch
         if: github.event_name == 'issue_comment'
-        uses: xt0rted/pull-request-comment-branch@v2
+        uses: xt0rted/pull-request-comment-branch@d97294d304604fa98a2600a6e2f916a84b596dc7 # v2
         id: comment-branch
 
       - name: (PR comment) Submit PR result as failed
         if: github.event_name == 'issue_comment' && env.FAILED == 'true'
-        uses: myrotvorets/set-commit-status-action@v2.0.1
+        uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
         with:
           sha: ${{ steps.comment-branch.outputs.head_sha }}
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -772,7 +772,7 @@ jobs:
 
       - name: (PR comment) Submit PR result as success
         if: github.event_name == 'issue_comment' && env.FAILED != 'true'
-        uses: myrotvorets/set-commit-status-action@v2.0.1
+        uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
         with:
           sha: ${{ steps.comment-branch.outputs.head_sha }}
           token: ${{ secrets.GITHUB_TOKEN }}
