@@ -59,7 +59,7 @@ jobs:
           private_key: ${{ secrets.GH_APP_DATADOG_VECTOR_CI_APP_PRIVATE_KEY }}
       - name: Get PR comment author
         id: comment
-        uses: tspascoal/get-user-teams-membership@v3
+        uses: tspascoal/get-user-teams-membership@57e9f42acd78f4d0f496b3be4368fc5f62696662 # v3
         with:
           username: ${{ github.actor }}
           team: 'Vector'
@@ -70,11 +70,11 @@ jobs:
         run: exit 1
 
       - name: (PR comment) Get PR branch
-        uses: xt0rted/pull-request-comment-branch@v2
+        uses: xt0rted/pull-request-comment-branch@d97294d304604fa98a2600a6e2f916a84b596dc7 # v2
         id: comment-branch
 
       - name: (PR comment) Set latest commit status as pending
-        uses: myrotvorets/set-commit-status-action@v2.0.1
+        uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
         with:
           sha: ${{ steps.comment-branch.outputs.head_sha }}
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -85,7 +85,7 @@ jobs:
     runs-on: ubuntu-20.04-4core
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
         with:
           submodules: "recursive"
 
@@ -97,7 +97,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-amqp')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           # First one requires more time, as we need to build the image from scratch
           timeout_minutes: 30
@@ -108,7 +108,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-appsignal')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -118,7 +118,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-aws')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -128,7 +128,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-axiom')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -138,7 +138,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-azure')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -148,7 +148,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-clickhouse')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -158,7 +158,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-databend')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -168,7 +168,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-datadog-agent')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -178,7 +178,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-datadog-logs')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -188,7 +188,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-datadog-metrics')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -198,7 +198,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-datadog-traces')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -208,7 +208,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-dnstap')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -220,7 +220,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-docker-logs')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -230,7 +230,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-elasticsearch')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -240,7 +240,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-eventstoredb')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -250,7 +250,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-fluent')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -260,7 +260,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-gcp')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -270,7 +270,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-greptimedb')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -280,7 +280,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-humio')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -290,7 +290,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-http-client')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -300,7 +300,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-influxdb')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -310,7 +310,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-kafka')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -320,7 +320,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-logstash')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -330,7 +330,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-loki')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -340,7 +340,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-mongodb')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -350,7 +350,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-mqtt')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -362,7 +362,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-nats')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -372,7 +372,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-nginx')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -382,7 +382,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-opentelemetry')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -392,7 +392,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-postgres')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -402,7 +402,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-prometheus')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -412,7 +412,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-pulsar')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -422,7 +422,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-redis')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -432,7 +432,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-shutdown')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -442,7 +442,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-splunk')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -452,7 +452,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-integration-webhdfs')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -463,7 +463,7 @@ jobs:
     runs-on: ubuntu-20.04-8core
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
         with:
           submodules: "recursive"
 
@@ -474,7 +474,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-e2e-datadog-logs')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 35
           max_attempts: 3
@@ -484,7 +484,7 @@ jobs:
         if: ${{ contains(github.event.comment.body, '/ci-run-e2e-datadog-metrics')
           || contains(github.event.comment.body, '/ci-run-integration-all')
           || contains(github.event.comment.body, '/ci-run-all') }}
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         with:
           timeout_minutes: 35
           max_attempts: 3
@@ -510,7 +510,7 @@ jobs:
 
       - name: Validate issue comment
         if: github.event_name == 'issue_comment'
-        uses: tspascoal/get-user-teams-membership@v3
+        uses: tspascoal/get-user-teams-membership@57e9f42acd78f4d0f496b3be4368fc5f62696662 # v3
         with:
           username: ${{ github.actor }}
           team: 'Vector'
@@ -518,12 +518,12 @@ jobs:
 
       - name: (PR comment) Get PR branch
         if: github.event_name == 'issue_comment' && env.FAILED != 'true'
-        uses: xt0rted/pull-request-comment-branch@v2
+        uses: xt0rted/pull-request-comment-branch@d97294d304604fa98a2600a6e2f916a84b596dc7 # v2
         id: comment-branch
 
       - name: (PR comment) Submit PR result as success
         if: github.event_name == 'issue_comment' && env.FAILED != 'true'
-        uses: myrotvorets/set-commit-status-action@v2.0.1
+        uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
         with:
           sha: ${{ steps.comment-branch.outputs.head_sha }}
           token: ${{ secrets.GITHUB_TOKEN }}
